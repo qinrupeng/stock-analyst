@@ -1,0 +1,168 @@
+{
+  "meta": {
+    "lastTouchedVersion": "2026.2.6-3",
+    "lastTouchedAt": "2026-02-12T10:59:25.549Z"
+  },
+  "wizard": {
+    "lastRunAt": "2026-02-12T10:29:03.945Z",
+    "lastRunVersion": "2026.2.6-3",
+    "lastRunCommand": "configure",
+    "lastRunMode": "local"
+  },
+  "auth": {
+    "profiles": {
+      "qwen-portal:default": {
+        "provider": "qwen-portal",
+        "mode": "oauth"
+      },
+      "minimax:default": {
+        "provider": "minimax",
+        "mode": "api_key"
+      }
+    }
+  },
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "qwen-portal": {
+        "baseUrl": "https://portal.qwen.ai/v1",
+        "apiKey": "qwen-oauth",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "coder-model",
+            "name": "Qwen Coder",
+            "reasoning": false,
+            "input": [
+              "text"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 128000,
+            "maxTokens": 8192
+          },
+          {
+            "id": "vision-model",
+            "name": "Qwen Vision",
+            "reasoning": false,
+            "input": [
+              "text",
+              "image"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 128000,
+            "maxTokens": 8192
+          }
+        ]
+      },
+      "minimax": {
+        "baseUrl": "https://api.minimaxi.com/anthropic",
+        "apiKey": "sk-cp-R43IsbbEweQu5rpYrnUowtR4Ub6gyhx3d3Dszi5173zRPuAAa_vc0YnQQevfj0J6WXaMLFS0DKc1G8OuFTGo7K-h1tiUC2A-vBCPULq0iZKcRMCip-iKijo",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "MiniMax-M2.1",
+            "name": "MiniMax M2.1",
+            "reasoning": false,
+            "input": [
+              "text"
+            ],
+            "cost": {
+              "input": 15,
+              "output": 60,
+              "cacheRead": 2,
+              "cacheWrite": 10
+            },
+            "contextWindow": 200000,
+            "maxTokens": 8192
+          }
+        ]
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "minimax/MiniMax-M2.1",
+        "fallbacks": [
+          "qwen-portal/coder-model",
+          "qwen-portal/vision-model"
+        ]
+      },
+      "models": {
+        "qwen-portal/coder-model": {
+          "alias": "qwen"
+        },
+        "qwen-portal/vision-model": {},
+        "minimax/MiniMax-M2.1": {
+          "alias": "Minimax"
+        }
+      },
+      "workspace": "D:\\AI_Workspace",
+      "compaction": {
+        "mode": "safeguard"
+      },
+      "maxConcurrent": 4,
+      "subagents": {
+        "maxConcurrent": 8
+      }
+    }
+  },
+  "tools": {
+    "web": {
+      "search": {
+        "enabled": false
+      },
+      "fetch": {
+        "enabled": true
+      }
+    }
+  },
+  "messages": {
+    "ackReactionScope": "group-mentions"
+  },
+  "commands": {
+    "native": "auto",
+    "nativeSkills": "auto"
+  },
+  "channels": {
+    "feishu": {
+      "connectionMode": "websocket",
+      "enabled": true,
+      "appId": "cli_a902dd4e69b89bd7",
+      "appSecret": "9mGFxuEp66bOeA49BDlLyeZnwNMPu4Hm"
+    }
+  },
+  "gateway": {
+    "port": 8090,
+    "mode": "local",
+    "bind": "loopback",
+    "auth": {
+      "mode": "token",
+      "token": "openclaw-local"
+    },
+    "tailscale": {
+      "mode": "off",
+      "resetOnExit": false
+    }
+  },
+  "plugins": {
+    "entries": {
+      "qwen-portal-auth": {
+        "enabled": true
+      },
+      "feishu": {
+        "enabled": true
+      }
+    }
+  }
+}

@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>天龙集团(300063)投资速报</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            background: #f5f5f5; 
+            color: #333; 
+            line-height: 1.6;
+            padding: 12px;
+        }
+        .card {
+            background: white; 
+            border-radius: 12px; 
+            padding: 16px; 
+            margin-bottom: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .header {
+            background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+        }
+        .stock-title { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+        .stock-name { font-size: 22px; font-weight: 700; }
+        .stock-code { font-size: 13px; opacity: 0.8; background: rgba(255,255,255,0.2); padding: 3px 10px; border-radius: 15px; }
+        .price-row { display: flex; align-items: baseline; gap: 12px; }
+        .price { font-size: 36px; font-weight: 700; }
+        .change { 
+            font-size: 16px; 
+            padding: 4px 12px; 
+            border-radius: 6px; 
+            font-weight: 600;
+        }
+        .down { background: rgba(229, 62, 62, 0.2); color: #fc8181; }
+        .metrics { 
+            display: grid; 
+            grid-template-columns: repeat(3, 1fr); 
+            gap: 10px; 
+            margin-top: 16px; 
+            padding-top: 16px; 
+            border-top: 1px solid rgba(255,255,255,0.2);
+        }
+        .metric { text-align: center; }
+        .metric-label { font-size: 11px; opacity: 0.7; }
+        .metric-value { font-size: 15px; font-weight: 600; }
+        
+        .section-title { 
+            font-size: 16px; 
+            font-weight: 700; 
+            color: #1a365d; 
+            margin-bottom: 12px; 
+            display: flex; 
+            align-items: center; 
+            gap: 8px;
+        }
+        .tag { font-size: 11px; padding: 2px 8px; border-radius: 10px; margin-left: 6px; }
+        .tag-red { background: #fed7d7; color: #c53030; }
+        .tag-green { background: #c6f6d5; color: #276749; }
+        .tag-yellow { background: #feebc8; color: #c05621; }
+        
+        .summary-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
+        .summary-row:last-child { border-bottom: none; }
+        .summary-label { color: #666; font-size: 14px; }
+        .summary-value { font-weight: 600; font-size: 14px; }
+        .positive { color: #38a169; }
+        .negative { color: #e53e3e; }
+        
+        .alert-box { 
+            padding: 12px; 
+            border-radius: 8px; 
+            margin-bottom: 10px; 
+            font-size: 14px;
+        }
+        .alert-danger { background: #fff5f5; border: 1px solid #feb2b2; }
+        .alert-success { background: #f0fff4; border: 1px solid #9ae6b4; }
+        .alert-title { font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+        
+        .strategy { 
+            display: flex; 
+            gap: 12px; 
+            padding: 12px; 
+            background: #f7fafc; 
+            border-radius: 8px; 
+            margin-bottom: 10px;
+        }
+        .strategy-icon { 
+            width: 40px; height: 40px; 
+            border-radius: 10px; 
+            display: flex; align-items: center; justify-content: center; 
+            color: white; flex-shrink: 0;
+        }
+        .strategy-content h4 { font-size: 14px; margin-bottom: 4px; }
+        .strategy-content p { font-size: 13px; color: #666; }
+        
+        .rating { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+        .rating-badge { 
+            padding: 8px 16px; 
+            border-radius: 8px; 
+            font-weight: 600; 
+            font-size: 14px;
+        }
+        .rating-hold { background: #feebc8; color: #c05621; }
+        .rating-sell { background: #fed7d7; color: #c53030; }
+        
+        .score-bar { flex: 1; height: 10px; background: #e2e8f0; border-radius: 5px; overflow: hidden; }
+        .score-fill { height: 100%; border-radius: 5px; }
+        
+        .footer { 
+            text-align: center; 
+            padding: 16px; 
+            color: #999; 
+            font-size: 12px; 
+            border-top: 1px solid #eee; 
+            margin-top: 20px;
+        }
+        .footer p { margin-bottom: 4px; }
+    </style>
+</head>
+<body>
+    <!-- 头部 -->
+    <div class="header">
+        <div class="stock-title">
+            <span class="stock-name">天龙集团</span>
+            <span class="stock-code">300063</span>
+        </div>
+        <div class="price-row">
+            <span class="price">¥14.27</span>
+            <span class="change down">-4.48%</span>
+        </div>
+        <div class="metrics">
+            <div class="metric">
+                <div class="metric-label">成交额</div>
+                <div class="metric-value">13.63亿</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">换手率</div>
+                <div class="metric-value">14.98%</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">PE(TTM)</div>
+                <div class="metric-value">17.93</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 综合评级 -->
+    <div class="card">
+        <div class="section-title">📋 综合评级</div>
+        <div class="rating">
+            <span class="rating-badge rating-hold">⚠️ 谨慎持有</span>
+            <div class="score-bar">
+                <div class="score-fill" style="width: 35%; background: linear-gradient(90deg, #fc8181, #e53e3e);"></div>
+            </div>
+            <span style="font-weight: 700; color: #e53e3e;">3.5分</span>
+        </div>
+        <div style="font-size: 13px; color: #666;">
+            📍 目标价：<strong>12.0-16.0元</strong>
+        </div>
+    </div>
+
+    <!-- 核心逻辑 -->
+    <div class="card">
+        <div class="section-title">💡 核心逻辑</div>
+        <div class="summary-row">
+            <span class="summary-label">营收</span>
+            <span class="summary-value negative">54.59亿 (-5.84%)</span>
+        </div>
+        <div class="summary-row">
+            <span class="summary-label">净利润</span>
+            <span class="summary-value positive">1.11亿 (+129%)</span>
+        </div>
+        <div class="summary-row">
+            <span class="summary-label">字节合作</span>
+            <span class="summary-value positive">✓ 火山引擎战略</span>
+        </div>
+    </div>
+
+    <!-- 风险警示 -->
+    <div class="card">
+        <div class="section-title">🚨 风险警示</div>
+        <div class="alert-box alert-danger">
+            <div class="alert-title">🔴 高管减持</div>
+            <div style="font-size: 13px; color: #742a2a;">副总经理王娜拟减持不超88.8万股</div>
+        </div>
+        <div class="alert-box alert-danger">
+            <div class="alert-title">🔴 技术破位</div>
+            <div style="font-size: 13px; color: #742a2a;">M头形态确认，颈线已破</div>
+        </div>
+        <div class="alert-box alert-danger">
+            <div class="alert-title">🟡 卖压明显</div>
+            <div style="font-size: 13px; color: #744210;">内盘53万 > 外盘40万</div>
+        </div>
+    </div>
+
+    <!-- 利好因素 -->
+    <div class="card">
+        <div class="section-title">🚀 利好因素</div>
+        <div class="alert-box alert-success">
+            <div class="alert-title">✓ 字节跳动合作</div>
+            <div style="font-size: 13px; color: #22543d;">与火山引擎战略合作，AI概念加持</div>
+        </div>
+        <div class="alert-box alert-success">
+            <div class="alert-title">✓ 业绩大增</div>
+            <div style="font-size: 13px; color: #22543d;">净利润同比+129%，盈利能力改善</div>
+        </div>
+        <div class="alert-box alert-success">
+            <div class="alert-title">✓ 筹码集中</div>
+            <div style="font-size: 13px; color: #22543d;">股东户数-4.07%，机构关注提升</div>
+        </div>
+    </div>
+
+    <!-- 技术分析 -->
+    <div class="card">
+        <div class="section-title">📊 技术分析</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div style="padding: 10px; background: #fed7d7; border-radius: 8px; text-align: center;">
+                <div style="font-size: 11px; color: #c53030;">第一支撑</div>
+                <div style="font-size: 18px; font-weight: 700; color: #c53030;">13.5元</div>
+            </div>
+            <div style="padding: 10px; background: #fed7d7; border-radius: 8px; text-align: center;">
+                <div style="font-size: 11px; color: #c53030;">第一压力</div>
+                <div style="font-size: 18px; font-weight: 700; color: #c53030;">15.05元</div>
+            </div>
+        </div>
+        <div style="margin-top: 12px; font-size: 13px; color: #666; text-align: center;">
+            ⚠️ M头形态确认，量比0.66萎缩
+        </div>
+    </div>
+
+    <!-- 操作建议 -->
+    <div class="card">
+        <div class="section-title">🎯 操作建议</div>
+        <div class="strategy">
+            <div class="strategy-icon" style="background: linear-gradient(135deg, #e53e3e, #fc8181);">
+                <span style="font-size: 16px;">🕐</span>
+            </div>
+            <div class="strategy-content">
+                <h4>短期（1-2周）</h4>
+                <p>观望等待减持明朗，跌破13.5元考虑止损</p>
+            </div>
+        </div>
+        <div class="strategy">
+            <div class="strategy-icon" style="background: linear-gradient(135deg, #d69e2e, #f6e05e);">
+                <span style="font-size: 16px;">📅</span>
+            </div>
+            <div class="strategy-content">
+                <h4>中期（1-3月）</h4>
+                <p>回调至12.5-13元可分批建仓</p>
+            </div>
+        </div>
+        <div class="strategy">
+            <div class="strategy-icon" style="background: linear-gradient(135deg, #38a169, #55efc4);">
+                <span style="font-size: 16px;">⏳</span>
+            </div>
+            <div class="strategy-content">
+                <h4>长期（6-12月）</h4>
+                <p>概念明确，业绩验证中，目标14-16元</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 底部 -->
+    <div class="footer">
+        <p>🤖 <strong>引擎1</strong>: Browser抓取 | 🧠 <strong>引擎2</strong>: 七层搜索</p>
+        <p>📅 2026-02-14 20:00 GMT+8 | ⚠️ 股市有风险，投资需谨慎</p>
+    </div>
+</body>
+</html>

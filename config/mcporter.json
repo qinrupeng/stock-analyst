@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "MiniMax": {
+      "command": "uvx",
+      "args": [ "minimax-coding-plan-mcp" ],
+      "env": {
+        "MINIMAX_API_KEY": "sk-cp-R43IsbbEweQu5rpYrnUowtR4Ub6gyhx3d3Dszi5173zRPuAAa_vc0YnQQevfj0J6WXaMLFS0DKc1G8OuFTGo7K-h1tiUC2A-vBCPULq0iZKcRMCip-iKijo",
+        "MINIMAX_API_HOST": "https://api.minimaxi.com"
+      }
+    }
+  },
+  "imports": []
+}

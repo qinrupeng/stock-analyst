@@ -1,0 +1,144 @@
+openclaw飞书机器人：
+App ID：
+cli_a902dd4e69b89bd7
+App Secret：
+9mGFxuEp66bOeA49BDlLyeZnwNMPu4Hm
+
+#查看插件列表
+openclaw plugins list
+
+# 一次性配置所有参数（推荐）
+openclaw config set channels.feishu '{
+  "appId": "cli_a902dd4e69b89bd7",
+  "appSecret": "9mGFxuEp66bOeA49BDlLyeZnwNMPu4Hm",
+  "enabled": true,
+  "domain": "feishu",
+  "groupPolicy": "allowlist"
+}'
+
+# 或分步配置
+openclaw config set channels.feishu.enabled true
+openclaw config set channels.feishu.appId "cli_a902dd4e69b89bd7"
+openclaw config set channels.feishu.appSecret "9mGFxuEp66bOeA49BDlLyeZnwNMPu4Hm"
+
+
+openclaw plugins install @mlheng-clawd/feishu
+openclaw config set channels.feishu.enabled true
+openclaw config set channels.feishu.appId "cli_a902dd4e69b89bd7"
+openclaw config set channels.feishu.appSecret "9mGFxuEp66bOeA49BDlLyeZnwNMPu4Hm"
+openclaw config set channels.feishu.connectionMode websocket
+
+openclaw gateway stop
+openclaw gateway
+
+#重启网关
+openclaw gateway restart
+
+
+# 查看所有已安装技能
+openclaw skills list
+
+# 查看技能帮助
+openclaw skills help <技能名称>
+
+
+# 1. 搜索想用的技能
+npx clawhub@latest search 你想要的功能
+
+# 2. 安装技能
+npx clawhub@latest install 技能名称
+npx clawhub@latest playwright-cli
+
+npx clawhub@latest search baidu-search
+
+# 搜索特定功能技能
+npx clawhub@latest search "关键词"
+
+# 示例：
+npx clawhub@latest search "coding-agent"      # 搜索Docker相关技能
+npx clawhub@latest search "github"      # 搜索GitHub相关技能  
+npx clawhub@latest search "pdf"         # 搜索PDF处理技能
+npx clawhub@latest search "翻译"        # 搜索翻译技能
+
+# 3. 查看使用说明
+openclaw skills help 技能名称
+
+# 4. 开始使用！
+
+
+
+#飞书权限开通（json）
+{
+  "scopes":{
+    "tenant":[
+      "im:chat:read",
+      "im:chat:update",
+      "im:message.group_at_msg:readonly",
+      "im:message.p2p_msg:readonly",
+      "im:message.pins:read",
+      "im:message.pins:write_only",
+      "im:message.reactions:read",
+      "im:message.reactions:write_only",
+      "im:message:readonly",
+      "im:message:recall",
+      "im:message:send_as_bot",
+      "im:message:send_multi_users",
+      "im:message:send_sys_msg",
+      "im:message:update",
+      "im:resource"
+    ],
+    "user":[
+      "contact:user.employee_id:readonly"
+    ]
+}
+}
+
+o----------------配置模型models----------------------------------------+
+ # 1. 获取API密钥（先去网站注册）
+# 2. 运行配置命令（国内版）
+
+# 3. 切换模型
+openclaw models set minimax/MiniMax-M2.1
+
+# 4. 重启服务
+openclaw gateway restart       
+		
+
+# 1. 设置 baseUrl
+openclaw config set models.providers.minimax.baseUrl "https://api.minimaxi.com/anthropic"
+
+# 2. 设置 apiKey（请务必使用重置后的密钥！）
+openclaw config set models.providers.minimax.apiKey "sk-cp-R43IsbbEweQu5rpYrnUowtR4Ub6gyhx3d3Dszi5173zRPuAAa_vc0YnQQevfj0J6WXaMLFS0DKc1G8OuFTGo7K-h1tiUC2A-vBCPULq0iZKcRMCip-iKijo"
+
+# 3. 设置 api
+openclaw config set models.providers.minimax.api "anthropic-messages"
+
+# 4. 设置 models（注意：models 是数组，需用 JSON 字符串表示）
+openclaw config set models.providers.minimax.models '[{"id":"MiniMax-M2.1","name":"MiniMax M2.1"}]'
+
+# 1. 打开配置文件
+notepad C:\Users\Administrator\.openclaw\openclaw.json
+	
++---------------------------------------------------------+
+
+o-------------------设置浏览器--------------------------------------+
+#配置浏览器默认openclaw
+openclaw config set browser.defaultProfile "openclaw"
+
+# 检查当前配置
+openclaw config get browser.defaultProfile
+
+# 或者查看完整浏览器配置
+openclaw config get browser
+
+#先停止再启动
+openclaw browser stop
+openclaw browser start
+
+#查看状态
+openclaw browser status
+
+#系统变量备份
+HTTPS_PROXY
+http://127.0.0.1:7890
+

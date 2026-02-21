@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "skills": {
+    "mcporter": {
+      "version": "1.0.0",
+      "installedAt": 1770608896918
+    },
+    "weather": {
+      "version": "1.0.0",
+      "installedAt": 1770609151650
+    },
+    "obsidian": {
+      "version": "1.0.0",
+      "installedAt": 1770872124743
+    },
+    "session-logs": {
+      "version": "1.0.0",
+      "installedAt": 1770875026030
+    },
+    "nano-pdf": {
+      "version": "1.0.0",
+      "installedAt": 1770875125776
+    },
+    "model-usage": {
+      "version": "1.0.0",
+      "installedAt": 1770875313883
+    },
+    "summarize": {
+      "version": "1.0.0",
+      "installedAt": 1770875525518
+    },
+    "humanizer-zh": {
+      "version": "1.0.0",
+      "installedAt": 1770875679482
+    },
+    "baidu-search": {
+      "version": "1.0.6",
+      "installedAt": 1770875840673
+    },
+    "find-skills": {
+      "version": "0.1.0",
+      "installedAt": 1770875914322
+    },
+    "playwright-testing": {
+      "version": "1.0.0",
+      "installedAt": 1770876830666
+    }
+  }
+}
