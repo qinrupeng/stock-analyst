@@ -263,18 +263,24 @@ def build_cover_prompt(analysis: dict, args=None) -> dict:
                 return icon
         return "科技图表"
 
-    # 根据主题数量自动判断布局
-    topic_count = len(topics)
-    if topic_count == 5:
+    # 用户指定布局优先，否则根据主题数量自动适配
+    custom_layout = getattr(args, "layout", None) if args else None
+    if custom_layout:
+        # 用户指定了布局
+        layout_type = custom_layout
+        print(f"[INFO] 已使用指定布局：{custom_layout}")
+    elif topic_count == 1:
+        layout_type = "single"
+    elif topic_count == 2:
+        layout_type = "two_column"
+    elif topic_count == 3:
+        layout_type = "three_column"
+    elif topic_count == 4:
+        layout_type = "grid_2x2"
+    elif topic_count == 5:
         layout_type = "hub_spoke"
     elif topic_count == 6:
         layout_type = "grid_2x3"
-    elif topic_count == 4:
-        layout_type = "grid_2x2"
-    elif topic_count == 3:
-        layout_type = "three_column"
-    elif topic_count == 2:
-        layout_type = "two_column"
     else:
         layout_type = "single"
 
@@ -295,6 +301,37 @@ def build_cover_prompt(analysis: dict, args=None) -> dict:
             slot_lines.append(f"- {positions[i]}：{icon}，标注'{topic}'")
         topic_visual_text = "\n".join(slot_lines)
         topic_visual_text = "5个面板围绕中心标题：\n" + topic_visual_text
+    elif layout_type == "fan_shaped":
+        # 扇形展开：上1中2下2，像扇子一样打开
+        positions = [
+            "顶部中央（扇形顶点）",
+            "中左（扇骨左侧）",
+            "中右（扇骨右侧）",
+            "底左（扇骨左下）",
+            "底右（扇骨右下）",
+        ]
+        for i, topic in enumerate(topics[:5]):
+            icon = get_topic_icon(topic)
+            slot_lines.append(f"{i+1}. {positions[i]}：{icon}，标注'{topic}'")
+        topic_visual_text = "\n".join(slot_lines)
+        topic_visual_text = "扇形展开布局，5个面板呈放射状：\n" + topic_visual_text
+    elif layout_type == "left4_right1":
+        # 左侧4格2x2 + 右侧1个大格
+        positions = ["左上格", "右上格", "左下格", "右下格"]
+        for i, topic in enumerate(topics[:4]):
+            icon = get_topic_icon(topic)
+            slot_lines.append(f"{i+1}. {positions[i]}：{icon}，标注'{topic}'")
+        slot_lines.append(f"5. 右侧大格（突出总结区）：{get_topic_icon(topics[4] if len(topics)>4 else topics[-1])}，标注'{topics[4] if len(topics)>4 else topics[-1]}'")
+        topic_visual_text = "\n".join(slot_lines)
+        topic_visual_text = "左侧4格2x2网格 + 右侧1个大格：\n" + topic_visual_text
+    elif layout_type == "top3_bottom2":
+        # 顶部3格横排 + 底部2格横排
+        positions = ["上左格", "上中格", "上右格", "下左格", "下右格"]
+        for i, topic in enumerate(topics[:5]):
+            icon = get_topic_icon(topic)
+            slot_lines.append(f"{i+1}. {positions[i]}：{icon}，标注'{topic}'")
+        topic_visual_text = "\n".join(slot_lines)
+        topic_visual_text = "顶部3格横排 + 底部2格横排：\n" + topic_visual_text
     elif layout_type == "grid_2x2":
         positions = ["左上格", "右上格", "左下格", "右下格"]
         for i, topic in enumerate(topics[:4]):
@@ -374,32 +411,56 @@ Subtitle: "{topics_text}"
 - Financial news media style
 - Clean, professional layout""".format(aspect_ratio=aspect_ratio)
     
-    # 5. 中文提示词
-    cn_prompt = f"""财经新闻封面图片
+    # 5. 中文提示词（大爷验证最优格式，逐格精确定义，全中文避免乱码）
+    
+    # 风格映射：style_key → 中文背景风格描述
+    style_bg_map = {
+        "folder": "拟物化文件夹/写字板质感背景",
+        "blueprint_lab": "科技蓝图风格背景",
+        "retro_pop_grid": "复古波普网格风格背景",
+        "acid_block": "赛博朋克霓虹风格背景",
+        "thermal": "手绘黑板风格背景",
+        "vintage_journal": "复古期刊风格背景",
+        "archive": "档案文件风格背景",
+        "ticket": "票据风格背景",
+    }
+    bg_style = style_bg_map.get(style, "专业金融研报风格背景")
+    
+    # 主标题
+    main_title = "A股热点前瞻"
+    if topics_text:
+        main_title_candidates = [t for t in topics if any(kw in t for kw in ["机会", "赛道", "前瞻", "热点"])]
+        if main_title_candidates:
+            main_title = f"A股{''.join(main_title_candidates[:2])}"
+    
+    # 布局描述
+    if layout_type == "grid_2x3":
+        layout_desc = "2x3网格布局"
+    elif layout_type == "hub_spoke":
+        layout_desc = "环形放射布局"
+    elif layout_type == "grid_2x2":
+        layout_desc = "2x2网格布局"
+    elif layout_type == "three_column":
+        layout_desc = "左中右三栏布局"
+    else:
+        layout_desc = "网格布局"
+    
+    # 面板边框要求
+    border_req = "每个板块有清晰边框和背景纹理"
+    
+    # 面板逐格描述（已有topic_visual_text）
+    slots_text = topic_visual_text.replace("\n", "\n")
+    
+    cn_prompt = f"""{aspect_ratio}宽屏比例，{bg_style}，寻找A股投资机会主题。采用{layout_desc}，{border_req}：
+{slots_text}
+顶部居中大标题：'{main_title}'，字体稳重清晰，整体色调统一偏暖色系，专业金融研报质感，无人物，高质量，无文字错误
 
-=== 封面文字（必须清晰展示）===
-主标题："A股热点前瞻"
-副标题：{topics_text}
-
-=== 布局与内容要求 ===
-- 顶部展示主标题"A股热点前瞻"，副标题：{topics_text}
-- 【关键】严格按照以下逐格描述生成，每个格子位置和内容都必须精确对应：
-{topic_visual_text}
-- 每个面板必须有清晰边框包裹
-- 色调统一，整体偏暖色系或科技蓝色系
-- 专业金融研报质感，无人物，高质量，无文字错误
-
-=== 风格要求（严格遵循参考图）===
-{''.join(ref_descriptions)}
-
-=== 负向约束（禁止事项，来自baoyu-skills）===
-{PROMPT_TEMPLATES.get('neg_constraints', '') if PROMPT_TEMPLATES.get('neg_constraints') else ''}
-
-=== 技术参数 ===
-- {aspect_ratio} 比例
-- 高质量4K
-- 财经媒体风格
-- 简洁专业""".format(aspect_ratio=aspect_ratio)
+=== 负向约束（禁止事项）===
+- 禁止水印、禁止平台标签、禁止来源标注
+- 禁止边框缺失、禁止面板截断
+- 禁止文字叠加、禁止标签栏出现非指定文字
+- 禁止文字乱码、禁止笔画错误
+""".format(aspect_ratio=aspect_ratio)
 
     return {
         "cn": cn_prompt,

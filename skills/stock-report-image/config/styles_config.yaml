@@ -5,7 +5,7 @@ style_ref_map:
   acid_block: "cyberpunk-neon.webp"
   thermal: "chalkboard.webp"
   vintage_journal: "vintage.webp"
-  folder: "flat.webp"
+  folder: "folder-reference.webp"
   archive: "editorial.webp"
   ticket: "playful.webp"
   # Baoyu预设兼容
@@ -62,6 +62,33 @@ theme_styles:
   # 新能源/科技 → acid_block
   锂电: "acid_block"
   电池: "acid_block"
+  
+  # 投资/策略/分析类 → folder（文件夹风格）
+  投资机会: "folder"
+  投资: "folder"
+  策略: "folder"
+  市场分析: "folder"
+  机会: "folder"
+  赛道机会: "folder"
+  热点前瞻: "folder"
+
+# ============================================================
+# 【新增】文件夹风格详细描述（大爷验证）
+# 风格名：folder / folder-reference.webp
+# 视觉：拟物化写字板 + 3D微缩场景 + 模块化文件夹卡片
+# 配色：米黄纸张背景 + 克莱因蓝/活力橙高饱和对比
+# 质感：木质夹板 + 泛黄纸张 + 银色金属夹
+# 适用：A股投资机会、市场分析、赛道机会类封面
+# ============================================================
+folder_style_desc: |
+  整体：拟物化写字板设计，7个文件夹卡片模块化布局，3D微缩场景
+  背景：米黄色/奶白色纸张纹理，木质夹板边缘
+  配色：克莱因蓝(#0046D5) + 活力橙(#FF6B35)，高饱和对比
+  质感：银色金属夹、圆角卡片、软阴影(2.5D/3D效果)
+  文字：加粗黑体，3D立体标题，清晰的信息图表标注
+  光影：左上方点光源，所有元素有高光和阴影
+  边框：每个模块圆角边框 + 顶部色块标签(Tab)
+  禁止：水印、边框缺失、文字错误
 
 # 默认风格
 default_style: "blueprint_lab"
@@ -186,6 +213,17 @@ layout_by_topic_count:
   2: "two_column"
   3: "three_column"
   4: "grid_2x2"
-  5: "hub_spoke"   # 5个赛道 → 环形放射（大爷验证最优）
+  5: "hub_spoke"   # 5个赛道默认环形放射
   6: "grid_2x3"    # 6个主题 → 2x3六宫格（大爷验证最优）
   7: "grid_3x3"
+
+# 5赛道可选布局（大爷验证）
+# 可通过 --layout 参数指定想要的布局
+five_topic_layouts:
+  default: "hub_spoke"          # 环形放射，5个面板围绕中心，均等夹角
+  recommended: "top3_bottom2"   # 顶部3格 + 底部2格，均衡对称（大爷最爱）
+  optional:
+    - "hub_spoke"               # 环形放射
+    - "top3_bottom2"            # 上3下2，均衡对称
+    - "left4_right1"           # 左侧4格2x2 + 右侧1个大格
+    - "fan_shaped"              # 扇形展开
