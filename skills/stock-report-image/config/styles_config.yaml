@@ -17,24 +17,50 @@ style_ref_map:
 
 # 主题关键词→风格映射
 # 新增主题直接在这里加，不用改代码
+# 主题关键词→风格映射（风格分布：folder/blueprint_lab/retro_pop_grid/vintage_journal/archive）
 theme_styles:
-  # 科技产业类 → blueprint_lab
+  # ========== folder ⭐ 大爷最爱 ==========
+  # 新能源/电力/投资机会 → folder（现代专业金融感）
+  储能锂电: "folder"
+  新能源: "folder"
+  锂电: "folder"
+  电池: "folder"
+  光伏: "folder"
+  电力: "folder"
+  电网: "folder"
+  特高压: "folder"
+  变压器: "folder"
+  投资机会: "folder"
+  投资: "folder"
+  策略: "folder"
+  市场分析: "folder"
+  机会: "folder"
+  赛道机会: "folder"
+  热点前瞻: "folder"
+
+  # ========== blueprint_lab 硬科技 ==========
+  # 算力/芯片/AI
   算力: "blueprint_lab"
   芯片: "blueprint_lab"
   AI: "blueprint_lab"
   人工智能: "blueprint_lab"
   半导体: "blueprint_lab"
-  电力: "blueprint_lab"
-  电网: "blueprint_lab"
-  变压器: "blueprint_lab"
-  光伏: "blueprint_lab"
-  新能源: "blueprint_lab"
+  # 商业/新兴
   航天: "blueprint_lab"
   卫星: "blueprint_lab"
   火箭: "blueprint_lab"
   低空: "blueprint_lab"
-  
-  # 资源金属类 → retro_pop_grid
+  低空经济: "blueprint_lab"
+  商业航天: "blueprint_lab"
+  # 前沿科技
+  脑机接口: "blueprint_lab"
+  光模块: "blueprint_lab"
+  存储芯片: "blueprint_lab"
+  PCB: "blueprint_lab"
+  消费电子: "blueprint_lab"
+  可控核聚变: "blueprint_lab"
+
+  # ========== retro_pop_grid 资源金属 ==========
   钨: "retro_pop_grid"
   稀土: "retro_pop_grid"
   小金属: "retro_pop_grid"
@@ -45,45 +71,21 @@ theme_styles:
   镍: "retro_pop_grid"
   金属: "retro_pop_grid"
   战略金属: "retro_pop_grid"
-  
-  # 化工类 → vintage_journal
+  有色金属: "retro_pop_grid"
+
+  # ========== vintage_journal 医药/化工 ==========
   磷化工: "vintage_journal"
   化肥: "vintage_journal"
   化工: "vintage_journal"
-  
-  # 医药类 → vintage_journal
   医药: "vintage_journal"
   医疗: "vintage_journal"
-  
-  # 金融类 → archive
-  金融: "archive"
-  银行: "archive"
-  
-  # 新能源/科技 → acid_block
-  锂电: "acid_block"
-  电池: "acid_block"
-  
-  # 投资/策略/分析类 → folder（文件夹风格）
-  投资机会: "folder"
-  投资: "folder"
-  策略: "folder"
-  市场分析: "folder"
-  机会: "folder"
-  赛道机会: "folder"
-  热点前瞻: "folder"
-
-  # 2026年新催化赛道 → blueprint_lab
-  脑机接口: "blueprint_lab"
-  低空经济: "blueprint_lab"
-  商业航天: "blueprint_lab"
-  光模块: "blueprint_lab"
-  存储芯片: "blueprint_lab"
-  PCB: "blueprint_lab"
-  消费电子: "blueprint_lab"
-  可控核聚变: "blueprint_lab"
   CXO: "vintage_journal"
   创新药: "vintage_journal"
   军工: "vintage_journal"
+
+  # ========== archive 金融 ==========
+  金融: "archive"
+  银行: "archive"
 
 # ============================================================
 # 【新增】文件夹风格详细描述（大爷验证）
