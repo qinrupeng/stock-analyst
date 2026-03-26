@@ -223,13 +223,48 @@ def build_cover_prompt(analysis: dict, args=None) -> dict:
     topics = analysis["merged_topics"]
     style = analysis["dominant_style"]
     ref_images = analysis["ref_images"]
+
+    # 如果用户强制指定了风格，强制使用该风格的参考图
+    custom_style = getattr(args, "style", None) if args else None
+    if custom_style and custom_style in STYLE_REF_MAP:
+        # 强制使用指定风格的参考图
+        ref_name = STYLE_REF_MAP[custom_style]
+        ref_path = REF_DIRS[0] / ref_name  # cover-image-styles/
+        if ref_path.exists():
+            ref_images = [ref_path]
+            style = custom_style  # 强制使用指定风格
     
     # 1. 构建主题描述 - 用逗号分隔，更清晰
     topics_text = "、".join(topics)
     
     # 2. 【核心优化】逐格精确定义（大爷验证最优格式）
-    # 用STOCK_TOPIC_SLOT_ICONS查图标，没有的话用"科技图表"兜底
+    # 用STOCK_TOPIC_SLOT_ICONS查图标，没有的话用fallback映射
+    # 【新增】主题变体映射（让不同表述能匹配到正确的图标）
+    TOPIC_VARIANT_MAP = {
+        "SpaceX冲刺IPO": "商业火箭+卫星星座图标",
+        "SpaceX": "商业火箭+卫星星座图标",
+        "IPO": "商业火箭+卫星星座图标",
+        "CPO芯片光互联": "方形芯片+针脚图标",
+        "CPO": "方形芯片+针脚图标",
+        "光互联": "光纤接口+光模块图标",
+        "人形机器人具身智能": "人形机器人+机械臂图标",
+        "具身智能": "人形机器人+机械臂图标",
+        "机器人": "人形机器人+机械臂图标",
+        "绿电算电协同": "电塔+变压器+电网图标",
+        "绿电": "电塔+变压器+电网图标",
+        "算电协同": "电塔+变压器+电网图标",
+        "核聚变核电": "等离子体环+能量球图标",
+        "核聚变": "等离子体环+能量球图标",
+        "核电": "等离子体环+能量球图标",
+        "可控核聚变": "等离子体环+能量球图标",
+    }
+
     def get_topic_icon(topic):
+        # 1. 先检查变体映射
+        for kw, icon in TOPIC_VARIANT_MAP.items():
+            if kw in topic:
+                return icon
+        # 2. 再检查STOCK_TOPIC_SLOT_ICONS
         for kw, icon in STOCK_TOPIC_SLOT_ICONS.items():
             if kw in topic:
                 return icon
@@ -351,28 +386,45 @@ def build_cover_prompt(analysis: dict, args=None) -> dict:
     
     # 平台适配：获取对应比例（必须在en_prompt之前，因为f-string里用了aspect_ratio）
     platform = getattr(args, "platform", "toutiao") if args else "toutiao"
-    aspect_ratio = config.get("platform_aspect_ratios", {}).get(platform, "16:9")
+    aspect_ratio_map = config.get("platform_aspect_ratios", {}) if config else {}
+    aspect_ratio = aspect_ratio_map.get(platform, "16:9")
+    # 公众号封面使用2.35:1比例（更适合长标题）
+    if platform == "wechat":
+        aspect_ratio = "2.35:1"
     print(f"[INFO] 适配平台：{platform}，使用比例：{aspect_ratio}")
+
+    # 主标题：如果传入了--title就用它，否则从topics推断
+    # 截断过长标题（封面图标题建议≤12字）
+    if getattr(args, "title", None) and args.title:
+        raw_title = args.title
+        # 截断标题：保留前12个字
+        if len(raw_title) > 12:
+            main_title = raw_title[:12] + "..."
+        else:
+            main_title = raw_title
+    else:
+        main_title = "A股热点前瞻"
+        if topics_text:
+            main_title_candidates = [t for t in topics if any(kw in t for kw in ["机会", "赛道", "前瞻", "热点"])]
+            if main_title_candidates:
+                main_title = f"A股{''.join(main_title_candidates[:2])}"
     
     en_prompt = f"""Create a professional financial news cover image.
 
 === COVER TEXT (MUST DISPLAY CLEARLY) ===
-Title: "A股热点前瞻"
-Subtitle: "{topics_text}"
+Title: "{main_title}"
 
 === TOPIC VISUALS (Each topic must have corresponding visual) ===
 {topic_visual_text}
 
-{template_text}
-
 === LAYOUT REQUIREMENTS ===
-- Title text at top: "A股热点前瞻" - large, bold
-- Subtitle: "{topics_text}" - clearly readable
-- 【关键】严格按照以下逐格描述生成，每个格子位置和内容都必须精确对应：
+- Title text at top: "{main_title}" - large, bold
+- 严格按照以下逐格描述生成，每个格子位置和内容都必须精确对应：
 {topic_visual_text}
 - 每个面板必须有清晰边框包裹
 - 色调统一，整体偏暖色系或科技蓝色系
 - 专业金融研报质感，无人物，高质量
+- 所有中文标注必须正确清晰
 
 === STYLE REQUIREMENTS (MUST FOLLOW REFERENCES) ===
 {''.join(ref_descriptions)}
@@ -384,27 +436,25 @@ Subtitle: "{topics_text}"
 - Clean, professional layout""".format(aspect_ratio=aspect_ratio)
     
     # 5. 中文提示词（大爷验证最优格式，逐格精确定义，全中文避免乱码）
-    
-    # 风格映射：style_key → 中文背景风格描述
-    style_bg_map = {
-        "folder": "拟物化文件夹/写字板质感背景",
-        "blueprint_lab": "科技蓝图风格背景",
-        "retro_pop_grid": "复古波普网格风格背景",
-        "acid_block": "赛博朋克霓虹风格背景",
-        "thermal": "手绘黑板风格背景",
-        "vintage_journal": "复古期刊风格背景",
-        "archive": "档案文件风格背景",
-        "ticket": "票据风格背景",
-    }
-    bg_style = style_bg_map.get(style, "专业金融研报风格背景")
-    
-    # 主标题
-    main_title = "A股热点前瞻"
-    if topics_text:
-        main_title_candidates = [t for t in topics if any(kw in t for kw in ["机会", "赛道", "前瞻", "热点"])]
-        if main_title_candidates:
-            main_title = f"A股{''.join(main_title_candidates[:2])}"
-    
+
+    # 【修复】优先使用配置文件的folder_style_desc，其次用style_bg_map
+    folder_desc = config.get("folder_style_desc", "") if config else ""
+    if folder_desc and style == "folder":
+        bg_style = folder_desc
+    else:
+        # 风格映射：style_key → 中文背景风格描述（兜底）
+        style_bg_map = {
+            "folder": "拟物化文件夹/写字板质感背景",
+            "blueprint_lab": "科技蓝图风格背景",
+            "retro_pop_grid": "复古波普网格风格背景",
+            "acid_block": "赛博朋克霓虹风格背景",
+            "thermal": "手绘黑板风格背景",
+            "vintage_journal": "复古期刊风格背景",
+            "archive": "档案文件风格背景",
+            "ticket": "票据风格背景",
+        }
+        bg_style = style_bg_map.get(style, "专业金融研报风格背景")
+
     # 布局描述
     if layout_type == "grid_2x3":
         layout_desc = "2x3网格布局"
@@ -414,6 +464,12 @@ Subtitle: "{topics_text}"
         layout_desc = "2x2网格布局"
     elif layout_type == "three_column":
         layout_desc = "左中右三栏布局"
+    elif layout_type == "top3_bottom2":
+        layout_desc = "顶部3格横排+底部2格横排"
+    elif layout_type == "left4_right1":
+        layout_desc = "左侧4格2x2网格+右侧1个大格"
+    elif layout_type == "fan_shaped":
+        layout_desc = "扇形展开布局"
     else:
         layout_desc = "网格布局"
     
@@ -423,16 +479,10 @@ Subtitle: "{topics_text}"
     # 面板逐格描述（已有topic_visual_text）
     slots_text = topic_visual_text.replace("\n", "\n")
     
-    cn_prompt = f"""{aspect_ratio}宽屏比例，{bg_style}，寻找A股投资机会主题。采用{layout_desc}，{border_req}：
+    cn_prompt = f"""{aspect_ratio}宽屏比例，{bg_style}，寻找A股投资机会主题。采用{layout_desc}：
 {slots_text}
-顶部居中大标题：'{main_title}'，字体稳重清晰，整体色调统一偏暖色系，专业金融研报质感，无人物，高质量，无文字错误
-
-=== 负向约束（禁止事项）===
-- 禁止水印、禁止平台标签、禁止来源标注
-- 禁止边框缺失、禁止面板截断
-- 禁止文字叠加、禁止标签栏出现非指定文字
-- 禁止中文字符变形、禁止笔画缺失、禁止文字乱码
-- 每个面板的标注文字必须完整正确，不能出现任何中文字符变形或缺失
+顶部居中大标题：'{main_title}'，字体稳重清晰，整体色调统一偏暖色系，专业金融研报质感，无人物，高质量。
+所有中文标注必须正确清晰。
 """.format(aspect_ratio=aspect_ratio)
 
     return {
@@ -633,6 +683,7 @@ def main():
     parser.add_argument("--style", type=str, help="指定风格（可选：blueprint_lab/retro_pop_grid/vintage_journal/acid_block/playful/retro/watercolor等17种）")
     parser.add_argument("--platform", type=str, choices=["toutiao", "xhs", "wechat"], default="toutiao", help="适配平台（默认toutiao，可选xhs/wechat）")
     parser.add_argument("--report", type=str, default="latest", help="报告文件名")
+    parser.add_argument("--title", type=str, default=None, help="文章标题（用于生成封面主标题）")
     parser.add_argument("--cover", action="store_true", help="生成封面图（1张整合所有主题）")
     parser.add_argument("--illustrate", action="store_true", help="为每个主题生成配图")
     parser.add_argument("--prompt-only", action="store_true", help="仅生成提示词")
@@ -697,11 +748,11 @@ def main():
         print(f"风格: {prompt_data['style']}")
         print(f"参考图: {len(prompt_data['ref_images'])}张")
         print(f"{'='*60}")
-        print(f"\n【英文提示词】\n{prompt_data['en']}")
-        print(f"\n{'='*60}")
-        
         if args.prompt_only:
-            print("[INFO] 仅生成提示词模式")
+            print(f"\n{'='*60}")
+            print(f"\n【中文提示词】\n{prompt_data['cn']}")
+            print(f"\n{'='*60}")
+            print("[INFO] 仅生成提示词模式，参考图：", [r.name for r in prompt_data["ref_images"]])
             return
         
         # 4. 生成图片
