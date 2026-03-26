@@ -136,6 +136,300 @@ def get_market_context(indices: dict[str, dict]) -> tuple[str, str]:
     return mood, signal
 
 
+# ─────────────────────────────────────────────
+# P1 新功能：Level2主力资金 / 板块阈值 / 止损止盈 / 生命周期
+# ─────────────────────────────────────────────
+
+def fetch_level2_flow(code: str) -> dict:
+    """获取分钟级主力资金流向（东财免费接口，无需L2权限）
+    
+    返回格式:
+    {
+        "total_main": int,     # 全天主力净流入（元，负=净流出）
+        "total_super": int,     # 超大单净流入
+        "total_big": int,       # 大单净流入
+        "total_mid": int,       # 中单净流入
+        "total_small": int,     # 小单净流入
+        "minute_data": [(time, main_net), ...],  # 分时序列
+        "inflow_rate": float,   # 主力净流入占全市场比（%）
+    }
+    
+    字段顺序(6字段): 时间,主力净流入,超大单净流入,大单净流入,中单净流入,小单净流入
+    """
+    secid = get_em_secid(code)
+    url = (
+        f"https://push2.eastmoney.com/api/qt/stock/fflow/kline/get"
+        f"?lmt=0&klt=1"
+        f"&fields1=f1,f2,f3"
+        f"&fields2=f51,f52,f53,f54,f55,f56"
+        f"&ut=7eea3edcaed734bea9c346148d8ab956"
+        f"&secid={secid}"
+    )
+    result = {
+        "total_main": 0, "total_super": 0, "total_big": 0,
+        "total_mid": 0, "total_small": 0,
+        "minute_data": [], "inflow_rate": 0.0,
+    }
+    try:
+        req = urllib.request.Request(url, headers={
+            "Referer": "https://data.eastmoney.com/",
+            "User-Agent": "Mozilla/5.0",
+        })
+        resp = urllib.request.urlopen(req, timeout=10)
+        text = resp.read().decode("utf-8")
+        # 接口可能返回JSONP或纯JSON
+        m = re.search(r'jQuery\((.+)\)', text)
+        if m:
+            data = json.loads(m.group(1))
+        else:
+            data = json.loads(text)
+        klines = data.get("data", {}).get("klines", [])
+        prev_main = prev_super = prev_big = prev_mid = prev_small = 0.0
+        for item in klines:
+            fields = item.split(",")
+            if len(fields) < 6:
+                continue
+            t = fields[0]
+            # East Money 返回的是当日累计值，需要差分得到单分钟真实流量
+            cur_main = float(fields[1])
+            cur_super = float(fields[2])
+            cur_big = float(fields[3])
+            cur_mid = float(fields[4])
+            cur_small = float(fields[5])
+            
+            # 单分钟流量 = 当前累计 - 上次累计
+            delta_main = cur_main - prev_main
+            delta_super = cur_super - prev_super
+            delta_big = cur_big - prev_big
+            delta_mid = cur_mid - prev_mid
+            delta_small = cur_small - prev_small
+            
+            result["minute_data"].append((t, delta_main))
+            result["total_main"] += delta_main
+            result["total_super"] += delta_super
+            result["total_big"] += delta_big
+            result["total_mid"] += delta_mid
+            result["total_small"] += delta_small
+            
+            prev_main, prev_super, prev_big, prev_mid, prev_small = cur_main, cur_super, cur_big, cur_mid, cur_small
+        
+        # 计算净流入占比（相对全市场成交）
+        total_abs = abs(result["total_main"])
+        if result["minute_data"]:
+            last_minute = result["minute_data"][-1][0]
+            # 用全天成交额估算（简化版）
+            total_amount_est = abs(result["total_main"]) + abs(result["total_small"])
+            if total_amount_est > 0:
+                result["inflow_rate"] = round(result["total_main"] / total_amount_est * 100, 2)
+    except Exception as e:
+        print(f"Level2资金流获取失败: {e}", file=sys.stderr)
+    return result
+
+
+def get_level2_signal(flow: dict, market_pct: float = 0) -> list[str]:
+    """根据Level2资金流返回操作信号"""
+    signals = []
+    if not flow["minute_data"]:
+        return signals
+    
+    total = flow["total_main"]
+    super_large = flow["total_super"]
+    big = flow["total_big"]
+    
+    if total > 1e8:  # 净流入>1亿
+        signals.append(f"✅ 主力净流入: {total/1e8:+.1f}亿（{'真金白银抢筹' if super_large+big > 0 else '多为中小单'})")
+    elif total < -1e8:  # 净流出>1亿
+        signals.append(f"⚠️ 主力净流出: {total/1e8:+.1f}亿（{'主力在出货' if super_large+big < 0 else '多为中小单出逃'}）")
+    
+    # 尾盘15分钟资金判断
+    mins = flow["minute_data"]
+    if len(mins) >= 15:
+        last_15 = sum(m for _, m in mins[-15:])
+        if last_15 > 3e7:  # 尾盘15分钟净流入>3000万
+            signals.append(f"🔥 尾盘15分钟主力加速净流入: {last_15/1e6:+.0f}万")
+        elif last_15 < -3e7:
+            signals.append(f"🔻 尾盘15分钟主力净流出: {last_15/1e6:+.0f}万")
+    
+    return signals
+
+
+def get_board_limits(code: str) -> tuple[float, float]:
+    """根据板块返回涨跌停阈值（用于量能分布判断）
+    
+    Returns: (涨停幅度%, 跌停幅度%)
+    """
+    board = get_board_type(code)
+    limits = {
+        "主板": (10.0, 10.0),
+        "科创板": (20.0, 20.0),
+        "创业板": (20.0, 20.0),
+        "北交所": (30.0, 30.0),
+    }
+    return limits.get(board, (10.0, 10.0))
+
+
+def calculate_support_resistance(code: str) -> dict:
+    """计算当日支撑/压力位 + 布林带（用于止损止盈参考）
+    
+    基于当日分时高低点 + 最近N日布林带
+    """
+    import math
+    
+    # 获取日K数据（最近20天）
+    daily = fetch_daily_data_em(code, days=20)
+    if not daily or len(daily) < 5:
+        return {}
+    
+    closes = [d["close"] for d in daily]
+    
+    # 布林带（20日）
+    period = min(20, len(closes))
+    ma20 = sum(closes[-period:]) / period
+    variance = sum((c - ma20) ** 2 for c in closes[-period:]) / period
+    std20 = math.sqrt(variance)
+    upper_band = round(ma20 + 2 * std20, 2)
+    lower_band = round(ma20 - 2 * std20, 2)
+    
+    # 当日高低点（从分时数据）
+    minute_data, _ = fetch_minute_data("sina", get_sina_symbol(code), code, count=500)
+    if not minute_data:
+        return {"bollinger": {"upper": upper_band, "ma20": round(ma20, 2), "lower": lower_band}}
+    
+    day_high = max((d["high"] for d in minute_data), default=0)
+    day_low = min((d["low"] for d in minute_data), default=0)
+    current = minute_data[-1]["close"] if minute_data else 0
+    
+    # 支撑/压力计算
+    today_range = day_high - day_low
+    support1 = round(day_low + today_range * 0.236, 2)   # 23.6%黄金分割
+    support2 = round(day_low + today_range * 0.382, 2)   # 38.2%
+    resistance1 = round(day_high - today_range * 0.236, 2)
+    resistance2 = round(day_high - today_range * 0.382, 2)
+    
+    # 止损参考（跌破支撑2%）
+    stop_loss = round(support1 * 0.98, 2)
+    # 止盈参考（接近压力位或布林上轨）
+    take_profit = min(resistance1, upper_band)
+    
+    return {
+        "bollinger": {
+            "upper": upper_band,
+            "ma20": round(ma20, 2),
+            "lower": lower_band,
+        },
+        "today": {
+            "high": round(day_high, 2),
+            "low": round(day_low, 2),
+            "current": round(current, 2),
+            "support1": support1,
+            "support2": support2,
+            "resistance1": resistance1,
+            "resistance2": resistance2,
+            "stop_loss": stop_loss,
+            "take_profit": round(take_profit, 2),
+        },
+    }
+
+
+def format_support_resistance(sr: dict) -> str:
+    """格式化支撑压力位输出"""
+    if not sr:
+        return ""
+    lines = ["", "【参考价位】"]
+    bb = sr.get("bollinger", {})
+    today = sr.get("today", {})
+    if bb:
+        lines.append(f"  布林带(20日): 上轨={bb['upper']} 中={bb['ma20']} 下轨={bb['lower']}")
+    if today:
+        lines.append(f"  今日: 高={today['high']} 低={today['low']} 现={today['current']}")
+        lines.append(f"  压力: {today.get('resistance1','?')} / {today.get('resistance2','?')}")
+        lines.append(f"  支撑: {today.get('support1','?')} / {today.get('support2','?')}")
+        lines.append(f"  止损参考: {today.get('stop_loss','?')}  止盈参考: {today.get('take_profit','?')}")
+    return "\n".join(lines)
+
+
+def detect_lifecycle_stage(code: str) -> dict:
+    """识别个股热点生命周期阶段（萌芽/爆发/成熟/衰退）
+    
+    基于近5日成交量趋势 + 换手率变化 + 价格动量
+    """
+    daily = fetch_daily_data_em(code, days=10)
+    if not daily or len(daily) < 5:
+        return {}
+    
+    volumes = [d["volume"] for d in daily]
+    closes = [d["close"] for d in daily]
+    amounts = [d["amount"] for d in daily]
+    
+    # 近3日均值 vs 前5日均值（量能趋势）
+    recent_vol = sum(volumes[-3:]) / 3
+    past_vol = sum(volumes[-6:-3]) / 3 if len(volumes) >= 6 else recent_vol
+    vol_ratio = recent_vol / past_vol if past_vol > 0 else 1.0
+    
+    # 价格动量（近3日涨跌）
+    price_chg = (closes[-1] - closes[-4]) / closes[-4] * 100 if len(closes) >= 4 else 0
+    
+    # 换手率估算（成交额/收盘市值）
+    est_turnover = [am / (cl * vol) if cl * vol > 0 else 0
+                    for am, cl, vol in zip(amounts, closes, volumes)]
+    avg_turnover = sum(est_turnover[-3:]) / 3 if len(est_turnover) >= 3 else 0
+    
+    # 判断阶段
+    if vol_ratio > 2.0 and price_chg > 10:
+        stage = "爆发期"
+        desc = f"量能激增{vl_to_text(vol_ratio)}，价格强势上涨{price_chg:.1f}%，大概率处于主升浪初期"
+    elif vol_ratio > 1.5 and price_chg > 5:
+        stage = "成熟期"
+        desc = f"量能维持高位，价格上涨{price_chg:.1f}%，可能处于主升浪中后期，注意回调风险"
+    elif vol_ratio < 0.7 and price_chg < -5:
+        stage = "衰退期"
+        desc = f"量能萎缩至前期的{vl_to_text(vol_ratio)}，价格下跌{price_chg:.1f}%，主线退潮"
+    elif vol_ratio > 1.2 and -3 < price_chg < 3:
+        stage = "萌芽期"
+        desc = f"量能温和放大({vl_to_text(vol_ratio)}倍)，价格横盘，可能在建仓阶段"
+    else:
+        stage = "震荡期"
+        desc = f"量能平稳，价格小幅变动{price_chg:.1f}%，方向不明"
+    
+    return {
+        "stage": stage,
+        "description": desc,
+        "vol_ratio_3d_vs_5d": round(vol_ratio, 2),
+        "price_momentum_3d": round(price_chg, 2),
+        "est_turnover": round(avg_turnover * 100, 2),  # 转为百分比
+    }
+
+
+def vl_to_text(ratio: float) -> str:
+    """量能比转文字"""
+    if ratio > 3:
+        return "3倍以上"
+    elif ratio > 2:
+        return "2倍以上"
+    elif ratio > 1.5:
+        return "1.5倍以上"
+    elif ratio > 1.2:
+        return "1.2倍以上"
+    elif ratio > 0.8:
+        return "相近"
+    elif ratio > 0.5:
+        return "萎缩至六成"
+    else:
+        return "萎缩至四成以下"
+
+
+def format_lifecycle(stage_info: dict) -> str:
+    """格式化生命周期输出"""
+    if not stage_info:
+        return ""
+    lines = ["", "【热点生命周期】"]
+    lines.append(f"  当前阶段: {stage_info['stage']}")
+    lines.append(f"  {stage_info['description']}")
+    lines.append(f"  量能比(近3日/前5日): {stage_info['vol_ratio_3d_vs_5d']}x")
+    lines.append(f"  价格动量(近3日): {stage_info['price_momentum_3d']:+.1f}%")
+    return "\n".join(lines)
+
+
 def fetch_realtime_sina(symbols: list[str]) -> dict[str, dict]:
     """从新浪获取实时行情（支持批量）
     
@@ -273,15 +567,34 @@ def fetch_minute_data_sina(symbol: str, count: int = 500) -> list[dict]:
     return []
 
 
+def get_board_type(code: str) -> str:
+    """根据股票代码识别板块类型，返回涨跌停限制和量能阈值说明
+    
+    - 主板(沪深): 10% 涨跌停
+    - 科创板: 20% 涨跌停
+    - 创业板: 20% 涨跌停（注册制）
+    - 北交所: 30% 涨跌停（新股前N天规则复杂，此处用30%）
+    """
+    code = code.upper().replace("SH", "").replace("SZ", "").replace(".", "").replace("BJ", "")
+    if code.startswith("688"):
+        return "科创板"   # 20% 涨跌停
+    elif code.startswith(("430", "830", "870")):
+        return "北交所"   # 30% 涨跌停（简化）
+    elif code.startswith("3"):
+        return "创业板"   # 20% 涨跌停
+    else:
+        return "主板"     # 10% 涨跌停
+
+
 def get_em_secid(code: str) -> str:
     """根据股票代码生成东方财富 secid
     
     secid格式：市场代码.股票代码
-    沪市: 1.x (6开头)
-    深市: 0.x (0/3开头)
-    北交所: 0.x (8/4开头)
+    沪市: 1.x (6开头，含688科创)
+    深市: 0.x (0/2/3开头)
+    北交所: 0.x (4/8开头)
     """
-    code = code.upper().replace("SH", "").replace("SZ", "").replace(".", "")
+    code = code.upper().replace("SH", "").replace("SZ", "").replace(".", "").replace("BJ", "")
     if code.startswith(("6",)):
         return f"1.{code}"
     elif code.startswith(("0", "3", "8", "4")):
@@ -723,8 +1036,11 @@ def format_minute_analysis(analysis: dict, name: str = "", market_pct: float = N
     return "\n".join(lines)
 
 
-def analyze_stock(code: str, with_minute: bool = False, with_tech: bool = False, realtime_cache: dict = None, market_change_pct: float = 0) -> dict:
-    """分析单只股票
+def analyze_stock(code: str, with_minute: bool = False, with_tech: bool = False,
+                  with_level2: bool = False, with_sr: bool = False,
+                  with_lifecycle: bool = False,
+                  realtime_cache: dict = None, market_change_pct: float = 0) -> dict:
+    """分析单只股票（完整版）
     
     Args:
         market_change_pct: 大盘（上证指数）今日涨跌幅%，用于增强主力信号判断
@@ -744,11 +1060,12 @@ def analyze_stock(code: str, with_minute: bool = False, with_tech: bool = False,
     result = {
         "code": code,
         "name": realtime["name"],
+        "board": get_board_type(code),
         "realtime": realtime,
         "updated_at": datetime.now().isoformat(),
     }
     
-    # 分时分析（主源:新浪，备用:东财）
+    # 分时分析（东财主源）
     if with_minute:
         minute_data, minute_source = fetch_minute_data("sina", sina_symbol, code)
         minute_analysis = analyze_minute_volume(minute_data, market_change_pct=market_change_pct)
@@ -766,6 +1083,22 @@ def analyze_stock(code: str, with_minute: bool = False, with_tech: bool = False,
             tech = {"rsi14": rsi14, "macd": macd}
         result["technicals"] = tech
     
+    # Level2 主力资金流
+    if with_level2:
+        flow = fetch_level2_flow(code)
+        flow_signals = get_level2_signal(flow, market_change_pct)
+        result["level2"] = {"data": flow, "signals": flow_signals}
+    
+    # 支撑/压力位
+    if with_sr:
+        sr = calculate_support_resistance(code)
+        result["support_resistance"] = sr
+    
+    # 热点生命周期
+    if with_lifecycle:
+        lifecycle = detect_lifecycle_stage(code)
+        result["lifecycle"] = lifecycle
+    
     return result
 
 
@@ -774,6 +1107,9 @@ def main():
     parser.add_argument("codes", nargs="+", help="股票代码，如 600789 002446")
     parser.add_argument("--minute", "-m", action="store_true", help="包含分时量能分析")
     parser.add_argument("--tech", "-t", action="store_true", help="包含技术指标(RSI/MACD)")
+    parser.add_argument("--level2", "-l", action="store_true", help="包含Level2主力资金流向分析")
+    parser.add_argument("--sr", action="store_true", help="包含支撑/压力位和止损止盈参考")
+    parser.add_argument("--lifecycle", action="store_true", help="包含热点生命周期阶段判断")
     parser.add_argument("--watch", "-w", action="store_true", help="监控模式：对比上次价格，有异动则告警")
     parser.add_argument("--json", "-j", action="store_true", help="JSON格式输出")
     
@@ -781,6 +1117,7 @@ def main():
     
     # 监控模式下强制拉取技术指标（用于RSI告警）
     fetch_tech = args.tech or args.watch
+    fetch_level2 = args.level2 or args.watch  # watch模式也带入
     
     # 获取大盘指数（用于分时分析增强）
     indices = fetch_market_indices()
@@ -793,6 +1130,11 @@ def main():
     
     results = []
     for code in args.codes:
+        result = analyze_stock(code, with_minute=args.minute, with_tech=fetch_tech,
+                              with_level2=fetch_level2, with_sr=args.sr,
+                              with_lifecycle=args.lifecycle,
+                              realtime_cache=realtime_cache, market_change_pct=sh_pct)
+        results.append(result)
         result = analyze_stock(code, with_minute=args.minute, with_tech=fetch_tech,
                               realtime_cache=realtime_cache, market_change_pct=sh_pct)
         results.append(result)
@@ -842,11 +1184,41 @@ def main():
             
             print(format_realtime(result["realtime"]))
             
+            # 板块信息
+            board = result.get("board", "主板")
+            up_limit, _ = get_board_limits(code)
+            print(f"  板块: {board} (涨跌停±{up_limit:.0f}%)")
+            
             if args.minute and "minute_analysis" in result:
                 print(format_minute_analysis(result["minute_analysis"], result["name"], market_pct=sh_pct))
             
             if args.tech and "technicals" in result:
                 print(format_technicals(result["technicals"]))
+            
+            # Level2 主力资金流
+            if args.level2 and "level2" in result:
+                l2 = result["level2"]
+                flow = l2["data"]
+                if flow["minute_data"]:
+                    total_main = flow["total_main"]
+                    arrow = "+" if total_main >= 0 else ""
+                    print(f"\n【Level2主力资金】全天主力净流入: {arrow}{total_main/1e8:.2f}亿")
+                    for sig in l2["signals"]:
+                        print(f"  {sig}")
+                else:
+                    print("\n【Level2主力资金】数据获取失败")
+            
+            # 支撑/压力位
+            if args.sr and "support_resistance" in result:
+                sr = result["support_resistance"]
+                if sr:
+                    print(format_support_resistance(sr))
+            
+            # 热点生命周期
+            if args.lifecycle and "lifecycle" in result:
+                lc = result["lifecycle"]
+                if lc:
+                    print(format_lifecycle(lc))
             
             print()
 
