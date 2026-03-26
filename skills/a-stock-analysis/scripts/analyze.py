@@ -1248,7 +1248,7 @@ def calculate_position_limit(
 
 
 def build_conclusion(result: dict, market_pct: float, profile: dict = None) -> str:
-    """综合所有维度输出结论性判断
+    """综合所有维度输出结论性判断（简洁聚焦版）
     
     核心逻辑：
     1. 大盘方向（定贝塔）
@@ -1263,15 +1263,15 @@ def build_conclusion(result: dict, market_pct: float, profile: dict = None) -> s
     lifecycle = result.get("lifecycle", {})
     sr = result.get("support_resistance", {}).get("today", {})
     tech = result.get("technicals", {})
-    
     profile = profile or {}
+    
     lines = ["", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"]
     lines.append("🎯 综合结论")
     lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     
-    verdicts = []  # 收集分项结论
+    verdicts = []  # (icon, tag, desc)
     
-    # ── 0. 大盘定调 ──
+    # ── 1. 大盘定调 ──
     market_risk = "medium"
     if market_pct < -0.5:
         verdicts.append(("🔴", "大盘弱势", "贝塔下行，整体市场偏空，选股难度大"))
@@ -1286,124 +1286,107 @@ def build_conclusion(result: dict, market_pct: float, profile: dict = None) -> s
         verdicts.append(("⚪", "大盘震荡", "方向不明，精选个股"))
         market_risk = "medium"
     
-    # ── 1. 多空博弈定意图 ──
+    # ── 2. 多空博弈 ──
     if level2.get("minute_data"):
         total_main = level2.get("total_main", 0)
         super_large = level2.get("total_super", 0)
         big = level2.get("total_big", 0)
         institution_net = super_large + big
         
-        if total_main > 1e8 and institution_net > 0:
-            verdicts.append(("🟢", "机构真金白银", "超大+大单净流入，主力真正抢筹"))
-        elif total_main > 1e8 and institution_net < 0:
-            verdicts.append(("🔴", "机构派发", "机构净流出+散户净买入，警惕主力出货"))
-        elif institution_net > 0:
-            verdicts.append(("🟢", "机构在布局", "机构主导，但规模有限"))
+        if institution_net > 0:
+            if total_main > 1e8:
+                verdicts.append(("🟢", "机构真金白银", f"超大+大单净流入{(super_large+big)/1e8:+.1f}亿，主力真正抢筹"))
+            else:
+                verdicts.append(("🟢", "机构在布局", "机构主导"))
         elif institution_net < 0:
-            verdicts.append(("🔴", "机构撤退", "大资金出逃，上涨难持续"))
+            if total_main < -1e8:
+                verdicts.append(("🔴", "机构派发", f"机构净流出{(super_large+big)/1e8:+.1f}亿，散户接盘"))
+            else:
+                verdicts.append(("🔴", "机构撤退", f"大单净流出{(super_large+big)/1e8:+.1f}亿，上涨难持续"))
         else:
-            verdicts.append(("⚪", "多空均衡", "主力观望，等待信号"))
+            verdicts.append(("⚪", "多空均衡", "主力观望"))
     
-    # ── 2. 生命周期定阶段 ──
+    # ── 3. 生命周期 ──
     stage = lifecycle.get("stage", "")
     if stage == "爆发期":
         verdicts.append(("🟢", "爆发期", "量价齐升，主升浪初期，胜率最高"))
     elif stage == "成熟期":
-        verdicts.append(("🟡", "成熟期", "高位放量，注意主力高位派发风险"))
+        verdicts.append(("🟡", "成熟期", "高位放量，注意主力派发风险"))
     elif stage == "衰退期":
         verdicts.append(("🔴", "衰退期", "量能萎缩，趋势向下，规避"))
     elif stage == "萌芽期":
-        verdicts.append(("⚪", "萌芽期", "量能温和，仍在蓄力，等待确认信号"))
+        verdicts.append(("⚪", "萌芽期", "量能温和，等待确认信号"))
     else:
         verdicts.append(("⚪", "震荡期", "方向不明，等待趋势明朗"))
     
-    # ── 3. 七大风险检测 ──
+    # ── 4. 风险检测 ──
     risks = get_risk_signals(profile, change_pct, tech)
     risk_count = len(risks)
-    if risks:
-        lines.append("")
-        lines.append("  ⚠️ 风险预警：")
-        for icon, rtype, desc in risks:
-            lines.append(f"    {icon} {rtype}：{desc}")
     
-    # ── 4. 综合结论 ──
+    # ── 5. 综合结论 ──
     pos_count = sum(1 for v in verdicts if v[0] == "🟢")
-    neg_count = sum(1 for v in verdicts if v[0] == "🔴")
-    neg_count += risk_count
+    neg_count = sum(1 for v in verdicts if v[0] == "🔴") + risk_count
     
     if pos_count >= 3 and neg_count == 0:
-        final_verdict = "积极关注"
-        final_note = "多方信号共振，中短期胜率较高"
+        final_verdict, final_note = "积极关注", "多方信号共振，中短期胜率较高"
     elif neg_count >= 3:
-        final_verdict = "保持谨慎"
-        final_note = "空方信号占优，建议等待或观望"
-    elif pos_count > neg_count:
-        final_verdict = "轻仓试探"
-        final_note = "方向偏多但需严格止损"
+        final_verdict, final_note = "保持谨慎", "空方信号占优，建议等待或观望"
     elif neg_count > pos_count:
-        final_verdict = "谨慎防御"
-        final_note = "空方信号偏多，严格控制风险"
+        final_verdict, final_note = "谨慎防御", "空方信号偏多，严格控制风险"
+    elif pos_count > neg_count:
+        final_verdict, final_note = "轻仓试探", "方向偏多，需严格止损"
     else:
-        final_verdict = "方向不明"
-        final_note = "多空信号均衡，等待趋势明朗"
+        final_verdict, final_note = "方向不明", "多空信号均衡，等待趋势明朗"
     
-    lines.append("")
+    # 汇总输出
+    if risks:
+        for icon, rtype, desc in risks:
+            lines.append(f"  {icon} {rtype}：{desc}")
+    
     for icon, tag, desc in verdicts:
         lines.append(f"  {icon} {tag}：{desc}")
     
+    # 结论框
     lines.append("")
-    lines.append(f"  ╔══════════════════════════════════════╗")
-    lines.append(f"  ║  【结论】{final_verdict:<20}       ║")
-    lines.append(f"  ║  {final_note:<34}       ║")
-    lines.append(f"  ╚══════════════════════════════════════╝")
+    lines.append(f"  ┌────────────────────────────────────┐")
+    lines.append(f"  │  【{final_verdict}】{final_note}   │")
+    lines.append(f"  └────────────────────────────────────┘")
     
-    # ── 5. 仓位上限 ──
-    # 流通市值（亿元，f162单位=亿元）
-    market_cap_yi = profile.get("circ_market_cap", 0)  # 亿元
-    position_advice = calculate_position_limit(market_risk, market_cap_yi, risk_count, stage)
-    lines.append(f"")
-    lines.append(f"  📊 {position_advice}")
+    # ── 6. 基本面+仓位 ──
+    market_cap_yi = profile.get("circ_market_cap", 0)
+    pe = profile.get("pe", 0)
+    cap_tag = "🔴" if market_cap_yi < 30 else "🟡" if market_cap_yi < 50 else "🟢"
+    pe_tag = "🔴" if pe >= 100 else "🟡" if pe >= 50 else "🟢"
+    position = calculate_position_limit(market_risk, market_cap_yi, risk_count, stage)
+    cap_info = f"{cap_tag}市值{market_cap_yi:.0f}亿  {pe_tag}PE{pe:.0f}" if market_cap_yi or pe else ""
+    if position.startswith("❌"):
+        lines.append(f"  {position}  {cap_info}")
+    elif cap_info:
+        lines.append(f"  {position}  {cap_info}")
+    else:
+        lines.append(f"  {position}")
     
-    if market_cap_yi > 0:
-        cap_tag = "🔴" if market_cap_yi < 30 else "🟡" if market_cap_yi < 50 else "🟢"
-        lines.append(f"    {cap_tag} 流通市值: {market_cap_yi:.0f}亿")
-    
-    # ── 6. 基本面参考 ──
-    if profile.get("pe"):
-        pe = profile["pe"]
-        pe_tag = "🔴" if pe >= 100 else "🟡" if pe >= 50 else "🟢"
-        lines.append(f"    {pe_tag} 市盈率PE: {pe:.1f}")
-    
-    # 注：换手率字段f167数据异常，暂不显示
-    
-    # ── 7. 近5日资金流向（如果有） ──
+    # ── 7. 近5日资金（简化为净流入天数） ──
     flow_hist = profile.get("flow_hist", [])
     if flow_hist:
-        lines.append(f"")
-        lines.append(f"  💰 近5日主力资金：")
-        for f in flow_hist[:5]:
-            arrow = "▲" if f["main_net"] > 0 else "▼"
-            color = "🟢" if f["main_net"] > 0 else "🔴"
-            lines.append(f"    {color} {f['date'][-5:]}  {arrow}{f['main_net']/1e8:.2f}亿")
+        inflow_days = sum(1 for f in flow_hist[:5] if f["main_net"] > 0)
+        total_flow = sum(f["main_net"] for f in flow_hist[:5])
+        flow_icon = "▲" if total_flow > 0 else "▼"
+        flow_color = "🟢" if total_flow > 0 else "🔴"
+        lines.append(f"  💰 近5日资金 {flow_color}{flow_icon}{inflow_days}天净流入  {flow_icon}{total_flow/1e8:+.1f}亿")
     
-    # ── 8. 关键价位操作参考 ──
-    if sr:
-        current = sr.get("current", 0)
-        stop_loss = sr.get("stop_loss", 0)
+    # ── 8. 操作参考 ──
+    if sr and sr.get("current") and sr.get("stop_loss"):
+        current = sr["current"]
+        stop_loss = sr["stop_loss"]
         resistance = sr.get("resistance1", 0)
-        if current and stop_loss:
-            loss_pct = (current - stop_loss) / current * 100
-            lines.append(f"")
-            lines.append(f"  📌 操作参考：")
-            lines.append(f"    现价 {current:.2f}，若跌破 {stop_loss:.2f}（-{loss_pct:.1f}%）立即止损")
-            if resistance and resistance > current:
-                gain_pct = (resistance - current) / current * 100
-                lines.append(f"    若突破 {resistance:.2f}（+{gain_pct:.1f}%）可考虑加仓")
-            # 止盈参考
-            take_profit = sr.get("take_profit", 0)
-            if take_profit and take_profit > current:
-                profit_pct = (take_profit - current) / current * 100
-                lines.append(f"    止盈参考: {take_profit:.2f}（+{profit_pct:.1f}%）")
+        loss_pct = (current - stop_loss) / current * 100
+        stop_info = f"跌破 {stop_loss:.2f}（-{loss_pct:.1f}%）止损"
+        if resistance and resistance > current:
+            gain_pct = (resistance - current) / current * 100
+            lines.append(f"  📌 {current:.2f} → {stop_info} | 突破{resistance:.2f}（+{gain_pct:.1f}%）加仓")
+        else:
+            lines.append(f"  📌 {current:.2f} → {stop_info}")
     
     return "\n".join(lines)
 
