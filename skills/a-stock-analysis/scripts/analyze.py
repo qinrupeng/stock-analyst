@@ -43,6 +43,99 @@ def get_sina_symbol(code: str) -> str:
         return "sh" + code
 
 
+# 大盘指数 symbols（新浪格式）
+MARKET_INDEX_SYMBOLS = "s_sh000001,s_sz399001,s_sz399006"
+INDEX_NAMES = {
+    "s_sh000001": "上证指数",
+    "s_sz399001": "深证成指",
+    "s_sz399006": "创业板指",
+}
+
+
+def fetch_market_indices() -> dict[str, dict]:
+    """获取大盘指数实时行情
+    
+    返回格式: {symbol: {name, price, change, change_pct, volume, amount}}
+    新浪s_前缀返回: 名称,点位,涨跌额,涨跌幅,成交量(万手),成交额(亿元)
+    """
+    result = {}
+    try:
+        url = f"https://hq.sinajs.cn/list={MARKET_INDEX_SYMBOLS}"
+        req = urllib.request.Request(url, headers={
+            "Referer": "https://finance.sina.com.cn",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        })
+        resp = urllib.request.urlopen(req, timeout=10)
+        text = resp.read().decode("gbk")
+        
+        for line in text.strip().split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            match = re.match(r'var hq_str_(\w+)="([^"]*)"', line)
+            if not match:
+                continue
+            sym = match.group(1)
+            data = match.group(2)
+            if not data or sym not in INDEX_NAMES:
+                continue
+            fields = data.split(",")
+            if len(fields) < 3:
+                continue
+            result[sym] = {
+                "name": INDEX_NAMES.get(sym, sym),
+                "price": float(fields[1]) if fields[1] else 0,
+                "change": float(fields[2]) if fields[2] else 0,
+                "change_pct": float(fields[3]) if fields[3] else 0,
+                "volume": float(fields[4]) if len(fields) > 4 and fields[4] else 0,
+                "amount": float(fields[5]) if len(fields) > 5 and fields[5] else 0,
+            }
+    except Exception as e:
+        print(f"大盘指数获取失败: {e}", file=sys.stderr)
+    return result
+
+
+def get_market_context(indices: dict[str, dict]) -> tuple[str, str]:
+    """根据大盘指数判断市场环境
+    
+    Returns:
+        (环境描述, 交易信号) - 如 ("三大指数全跌 市场偏弱", "谨慎做多")
+    """
+    if not indices:
+        return "无法获取大盘数据", "信号不明"
+    
+    total_pct = sum(v["change_pct"] for v in indices.values())
+    avg_pct = total_pct / len(indices)
+    
+    # 涨跌计数
+    rises = sum(1 for v in indices.values() if v["change_pct"] > 0)
+    falls = sum(1 for v in indices.values() if v["change_pct"] < 0)
+    
+    sh_pct = indices.get("s_sh000001", {}).get("change_pct", 0)
+    chg = indices.get("s_sh000001", {}).get("change", 0)
+    
+    if avg_pct > 0.5:
+        mood = "三大指数全涨 市场强势"
+        signal = "积极做多"
+    elif avg_pct > 0.1:
+        mood = "多数指数上涨 市场偏强"
+        signal = "可适当参与"
+    elif avg_pct < -0.5:
+        mood = "三大指数全跌 市场偏弱"
+        signal = "控仓观望"
+    elif avg_pct < -0.1:
+        mood = "多数指数下跌 市场偏弱"
+        signal = "谨慎操作"
+    elif abs(avg_pct) <= 0.1:
+        mood = "大盘震荡 方向不明"
+        signal = "等待确认"
+    else:
+        mood = "市场分化"
+        signal = "精选个股"
+    
+    return mood, signal
+
+
 def fetch_realtime_sina(symbols: list[str]) -> dict[str, dict]:
     """从新浪获取实时行情（支持批量）
     
@@ -133,7 +226,7 @@ def fetch_realtime_sina(symbols: list[str]) -> dict[str, dict]:
     return result
 
 
-def fetch_minute_data_sina(symbol: str, count: int = 250) -> list[dict]:
+def fetch_minute_data_sina(symbol: str, count: int = 500) -> list[dict]:
     """从新浪获取分时K线数据
     
     接口: CN_MarketDataService.getKLineData
@@ -142,6 +235,8 @@ def fetch_minute_data_sina(symbol: str, count: int = 250) -> list[dict]:
     - open/high/low/close: OHLC价格
     - volume: 成交量(股)
     - amount: 成交额(元)
+    
+    注意: A股交易时段09:15-15:00共350分钟，默认500条余量足够覆盖全天
     """
     url = f"https://quotes.sina.cn/cn/api/jsonp_v2.php/var%20_{symbol}=/CN_MarketDataService.getKLineData?symbol={symbol}&scale=1&ma=no&datalen={count}"
     
@@ -247,31 +342,27 @@ def fetch_minute_data_em(code: str, count: int = 250) -> list[dict]:
     return []
 
 
-def fetch_minute_data(source: str, symbol: str, code: str, count: int = 250) -> tuple[list[dict], str]:
-    """获取分时数据，主源失败则切换备用源
+def fetch_minute_data(source: str, symbol: str, code: str, count: int = 500) -> tuple[list[dict], str]:
+    """获取分时数据，东财为主源（覆盖完整时段），新浪备用
     
+    注意：东财接口返回完整分时，优先使用；新浪有250条记录限制
     Returns:
         (data, source): 分时数据列表和数据来源标识
     """
-    if source == "sina":
-        data = fetch_minute_data_sina(symbol, count)
-        if data:
-            return data, "新浪"
-        data = fetch_minute_data_em(code, count)
-        if data:
-            return data, "东方财富(备用)"
-        return [], "无数据"
-    else:
-        data = fetch_minute_data_em(code, count)
-        if data:
-            return data, "东方财富"
-        data = fetch_minute_data_sina(symbol, count)
-        if data:
-            return data, "新浪(备用)"
-        return [], "无数据"
+    # 东财优先：覆盖完整，不丢早盘数据
+    data = fetch_minute_data_em(code, count)
+    if data:
+        return data, "东方财富"
+    
+    # 备用：新浪
+    data = fetch_minute_data_sina(symbol, count)
+    if data:
+        return data, "新浪"
+    
+    return [], "无数据"
 
 
-def analyze_minute_volume(minute_data: list[dict]) -> dict:
+def analyze_minute_volume(minute_data: list[dict], market_change_pct: float = 0) -> dict:
     """分析分时量能
     
     时间过滤逻辑（修复Bug）：
@@ -332,17 +423,38 @@ def analyze_minute_volume(minute_data: list[dict]) -> dict:
         for d in sorted_by_vol
     ]
     
-    # 主力动向判断
+    # 主力动向判断（增强版：结合大盘环境）
     signals = []
+    stock_up = any(d["close"] > d["open"] for d in trading_data[-10:] if "open" in d)
+    stock_change_pct = 0  # 简化：粗估当日涨跌幅方向
+    if trading_data and trading_data[-1]["close"] and trading_data[0]["close"]:
+        stock_change_pct = (trading_data[-1]["close"] - trading_data[0]["close"]) / trading_data[0]["close"] * 100
+
     if total_vol > 0:
         if close_30 / total_vol > 0.25:
-            signals.append("尾盘大幅放量，可能有主力抢筹或出货")
+            if market_change_pct < -0.3:
+                signals.append("⚠️ 尾盘大幅放量+大盘走弱，可能是主力拉高出货")
+            elif stock_change_pct < 0 and market_change_pct > 0:
+                signals.append("⚠️ 尾盘大幅放量+该股走弱但大盘走强，留意主力出货")
+            else:
+                signals.append("尾盘大幅放量，可能有主力抢筹或出货")
         elif close_30 / total_vol > 0.15:
             signals.append("尾盘有一定放量")
+        
         if open_30 / total_vol > 0.30:
-            signals.append("早盘主力抢筹明显")
+            if market_change_pct < -0.5 and stock_change_pct < 0:
+                signals.append("⚠️ 大盘弱势+该股走弱+早盘放量，警惕主力砸盘")
+            elif market_change_pct > 0 and stock_change_pct > 1:
+                signals.append("✅ 大盘强势+该股领涨+早盘放量，主力真正抢筹信号")
+            else:
+                signals.append("早盘主力抢筹明显（需结合大盘判断强度）")
         if open_30 / total_vol > 0.40:
-            signals.append("早盘放量异常，主力强势介入")
+            if market_change_pct < -0.3:
+                signals.append("⚠️ 早盘异常放量+大盘大跌，谨慎！可能是对倒或诱多")
+            elif stock_change_pct > 2:
+                signals.append("🚀 早盘异常放量+强势上涨，主力强势介入")
+            else:
+                signals.append("早盘放量异常，主力介入信号（建议结合日线判断）")
     
     # 检测涨停/跌停：high == low 说明全天价格凝固在单一价位（封板特征）
     if trading_data:
@@ -568,15 +680,26 @@ def format_realtime(data: dict) -> str:
     return "\n".join(lines)
 
 
-def format_minute_analysis(analysis: dict, name: str = "") -> str:
-    """格式化分时分析输出"""
+def format_minute_analysis(analysis: dict, name: str = "", market_pct: float = None) -> str:
+    """格式化分时分析输出
+    
+    Args:
+        market_pct: 大盘涨跌幅%，用于标注市场环境
+    """
     if "error" in analysis:
         return f"分时分析错误: {analysis['error']}"
     
     source = analysis.get("data_source", "新浪")
+    
+    # 大盘环境标注
+    market_tag = ""
+    if market_pct is not None:
+        arrow = "▲" if market_pct > 0 else "▼" if market_pct < 0 else "—"
+        market_tag = f" [大盘:{arrow}{abs(market_pct):.2f}%]"
+    
     lines = [
         f"",
-        f"【分时量能分析】{name} [数据源:{source}]",
+        f"【分时量能分析】{name}{market_tag} [数据源:{source}]",
         f"  全天成交: {analysis['total_volume']}手 ({analysis['total_amount']/10000:.1f}万元)",
         f"",
         f"  成交分布:",
@@ -600,8 +723,12 @@ def format_minute_analysis(analysis: dict, name: str = "") -> str:
     return "\n".join(lines)
 
 
-def analyze_stock(code: str, with_minute: bool = False, with_tech: bool = False, realtime_cache: dict = None) -> dict:
-    """分析单只股票"""
+def analyze_stock(code: str, with_minute: bool = False, with_tech: bool = False, realtime_cache: dict = None, market_change_pct: float = 0) -> dict:
+    """分析单只股票
+    
+    Args:
+        market_change_pct: 大盘（上证指数）今日涨跌幅%，用于增强主力信号判断
+    """
     sina_symbol = get_sina_symbol(code)
     
     # 获取实时行情（支持缓存以批量获取）
@@ -624,7 +751,7 @@ def analyze_stock(code: str, with_minute: bool = False, with_tech: bool = False,
     # 分时分析（主源:新浪，备用:东财）
     if with_minute:
         minute_data, minute_source = fetch_minute_data("sina", sina_symbol, code)
-        minute_analysis = analyze_minute_volume(minute_data)
+        minute_analysis = analyze_minute_volume(minute_data, market_change_pct=market_change_pct)
         minute_analysis["data_source"] = minute_source
         result["minute_analysis"] = minute_analysis
     
@@ -655,18 +782,35 @@ def main():
     # 监控模式下强制拉取技术指标（用于RSI告警）
     fetch_tech = args.tech or args.watch
     
+    # 获取大盘指数（用于分时分析增强）
+    indices = fetch_market_indices()
+    sh_pct = indices.get("s_sh000001", {}).get("change_pct", 0)
+    mood, signal = get_market_context(indices)
+    
     # 批量获取实时行情
     sina_symbols = [get_sina_symbol(code) for code in args.codes]
     realtime_cache = fetch_realtime_sina(sina_symbols)
     
     results = []
     for code in args.codes:
-        result = analyze_stock(code, with_minute=args.minute, with_tech=fetch_tech, realtime_cache=realtime_cache)
+        result = analyze_stock(code, with_minute=args.minute, with_tech=fetch_tech,
+                              realtime_cache=realtime_cache, market_change_pct=sh_pct)
         results.append(result)
     
     if args.json:
-        print(json.dumps(results, ensure_ascii=False, indent=2))
+        output = {"market": {"indices": indices, "mood": mood, "signal": signal}, "stocks": results}
+        print(json.dumps(output, ensure_ascii=False, indent=2))
     else:
+        # 显示大盘环境
+        if indices:
+            print(f"{'='*60}")
+            print(f"【大盘环境】{mood}  建议: {signal}")
+            print(f"{'='*60}")
+            for sym, info in indices.items():
+                arrow = "+" if info["change_pct"] >= 0 else ""
+                print(f"  {info['name']}: {info['price']:.2f}  {arrow}{info['change_pct']:.2f}%")
+            print()
+        
         for result in results:
             if "error" in result:
                 print(f"错误: {result['error']}")
@@ -675,7 +819,6 @@ def main():
             # 监控模式
             if args.watch:
                 code = result["code"]
-                # 构建用于存储的状态（只存关键字段）
                 watch_state = {
                     "code": code,
                     "name": result["name"],
@@ -694,14 +837,13 @@ def main():
                     print(f"  现价: {watch_state['price']:.2f}  ({'+' if watch_state['change_pct']>=0 else ''}{watch_state['change_pct']:.2f}%)")
                 else:
                     print(f"{result['name']}({code}) 平稳: {watch_state['price']:.2f}")
-                # 保存状态
                 save_watch_state(code, watch_state)
                 continue
             
             print(format_realtime(result["realtime"]))
             
             if args.minute and "minute_analysis" in result:
-                print(format_minute_analysis(result["minute_analysis"], result["name"]))
+                print(format_minute_analysis(result["minute_analysis"], result["name"], market_pct=sh_pct))
             
             if args.tech and "technicals" in result:
                 print(format_technicals(result["technicals"]))
