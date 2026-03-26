@@ -1094,6 +1094,115 @@ def calculate_macd(closes: list[float], fast: int = 12, slow: int = 26, signal: 
     }
 
 
+def build_conclusion(result: dict, market_pct: float) -> str:
+    """综合所有维度输出结论性判断
+    
+    核心逻辑：
+    1. 大盘方向（定贝塔）
+    2. 资金多空博弈（定主力意图）
+    3. 生命周期（定胜率）
+    4. 技术信号（定入场点）
+    """
+    realtime = result.get("realtime", {})
+    change_pct = realtime.get("change_pct", 0)
+    level2 = result.get("level2", {}).get("data", {})
+    lifecycle = result.get("lifecycle", {})
+    sr = result.get("support_resistance", {}).get("today", {})
+    tech = result.get("technicals", {})
+    minute = result.get("minute_analysis", {})
+    
+    lines = ["", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"]
+    lines.append("🎯 综合结论")
+    lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    
+    verdicts = []  # 收集所有分项结论
+    
+    # ── 1. 大盘定调 ──
+    if market_pct < -0.5:
+        verdicts.append(("⚠️ 大盘弱势", "贝塔下行，整体市场偏空，选股难度大"))
+    elif market_pct < -0.1:
+        verdicts.append(("🔴 大盘偏弱", "谨慎做多，避免重仓"))
+    elif market_pct > 0.5:
+        verdicts.append(("🟢 大盘强势", "顺势做多，积极参与"))
+    else:
+        verdicts.append(("⚪ 大盘震荡", "方向不明，精选个股"))
+    
+    # ── 2. 多空博弈定意图 ──
+    if level2.get("minute_data"):
+        total_main = level2.get("total_main", 0)
+        super_large = level2.get("total_super", 0)
+        big = level2.get("total_big", 0)
+        institution_net = super_large + big
+        
+        if total_main > 1e8 and institution_net > 0:
+            verdicts.append(("✅ 机构真金白银", "超大+大单净流入，主力真正抢筹"))
+        elif total_main > 1e8 and institution_net < 0:
+            verdicts.append(("⚠️ 机构派发", "机构净流出+散户净买入，警惕主力出货"))
+        elif institution_net > 0:
+            verdicts.append(("✅ 机构在布局", "机构主导，但规模有限"))
+        elif institution_net < 0:
+            verdicts.append(("🔴 机构撤退", "大资金出逃，上涨难持续"))
+        else:
+            verdicts.append(("⚪ 多空均衡", "主力观望，等待信号"))
+    
+    # ── 3. 生命周期定阶段 ──
+    stage = lifecycle.get("stage", "")
+    if stage == "爆发期":
+        verdicts.append(("🚀 爆发期", "量价齐升，主升浪初期，胜率最高"))
+    elif stage == "成熟期":
+        verdicts.append(("🔥 成熟期", "高位放量，注意主力高位派发风险"))
+    elif stage == "衰退期":
+        verdicts.append(("💤 衰退期", "量能萎缩，趋势向下，规避"))
+    elif stage == "萌芽期":
+        verdicts.append(("🌱 萌芽期", "量能温和，仍在蓄力，等待确认信号"))
+    else:
+        verdicts.append(("⚖️ 震荡期", "方向不明，等待趋势明朗"))
+    
+    # ── 4. 综合结论 ──
+    # 统计各维度信号
+    positive = sum(1 for v in verdicts if v[0].startswith(("🟢", "✅", "🚀", "🌱")))
+    negative = sum(1 for v in verdicts if v[0].startswith(("🔴", "⚠️", "💤")))
+    
+    # 最终判断
+    if positive >= 3:
+        final_verdict = "积极关注"
+        final_note = "多方信号共振，中短期胜率较高"
+    elif negative >= 3:
+        final_verdict = "保持谨慎"
+        final_note = "空方信号占优，建议等待或观望"
+    elif positive == negative:
+        final_verdict = "方向不明"
+        final_note = "多空信号均衡，等待趋势明朗"
+    else:
+        final_verdict = "轻仓试探" if positive > negative else "谨慎防御"
+        final_note = "方向偏多但需严格止损" if positive > negative else "方向偏空，关注支撑位得失"
+    
+    for tag, desc in verdicts:
+        lines.append(f"  {tag}  {desc}")
+    
+    lines.append("")
+    lines.append(f"  ╔══════════════════════════════════════╗")
+    lines.append(f"  ║  【结论】{final_verdict:<20}       ║")
+    lines.append(f"  ║  {final_note:<34}       ║")
+    lines.append(f"  ╚══════════════════════════════════════╝")
+    
+    # ── 关键价位提醒 ──
+    if sr:
+        current = sr.get("current", 0)
+        stop_loss = sr.get("stop_loss", 0)
+        resistance = sr.get("resistance1", 0)
+        if current and stop_loss:
+            loss_pct = (current - stop_loss) / current * 100
+            lines.append(f"")
+            lines.append(f"  📌 操作参考：")
+            lines.append(f"    现价 {current:.2f}，若跌破 {stop_loss:.2f}（-{loss_pct:.1f}%）止损")
+            if resistance:
+                gain_pct = (resistance - current) / current * 100
+                lines.append(f"    若突破 {resistance:.2f}（+{gain_pct:.1f}%）可考虑加仓")
+    
+    return "\n".join(lines)
+
+
 def format_technicals(tech: dict) -> str:
     """格式化技术指标输出"""
     lines = [
@@ -1384,6 +1493,9 @@ def main():
                 lc = result["lifecycle"]
                 if lc:
                     print(format_lifecycle(lc))
+            
+            # 综合结论
+            print(build_conclusion(result, sh_pct))
             
             print()
 
