@@ -1094,14 +1094,167 @@ def calculate_macd(closes: list[float], fast: int = 12, slow: int = 26, signal: 
     }
 
 
-def build_conclusion(result: dict, market_pct: float) -> str:
+def fetch_stock_profile_em(code: str) -> dict:
+    """从东财获取股票基本面数据（市值/PE/换手率/近5日主力流向）
+    
+    f162: 流通市值(万元)
+    f167: 换手率(%)
+    f168: 动态市盈率
+    f173: 量比
+    f178: 近5日主力资金流向历史
+    """
+    secid = get_em_secid(code)
+    url = (
+        f"https://push2.eastmoney.com/api/qt/stock/get"
+        f"?secid={secid}"
+        f"&fields=f57,f58,f162,f167,f168,f170,f173,f178"
+    )
+    try:
+        req = urllib.request.Request(url, headers={
+            "Referer": "https://data.eastmoney.com/",
+            "User-Agent": "Mozilla/5.0",
+        })
+        resp = urllib.request.urlopen(req, timeout=10)
+        data = json.loads(resp.read().decode("utf-8"))
+        d = data.get("data", {})
+        if not d:
+            return {}
+        
+        # 解析近5日主力资金流向
+        flow_hist = []
+        raw_hist = d.get("f178", "[]")
+        if raw_hist and isinstance(raw_hist, str):
+            try:
+                flow_list = json.loads(raw_hist)
+                for f in flow_list:
+                    flow_hist.append({
+                        "date": f.get("date", ""),
+                        "main_net": f.get("mainNetAmt", 0),
+                    })
+            except Exception:
+                pass
+        
+        # 连续3日净流出检测
+        neg_days = 0
+        for f in flow_hist[:3]:
+            if f["main_net"] < 0:
+                neg_days += 1
+        
+        return {
+            "circ_market_cap": d.get("f162", 0),      # 流通市值（亿元），经茅台交叉验证
+            "pe": d.get("f168", 0),                   # 动态市盈率
+            "vol_ratio": d.get("f173", 0),            # 量比
+            "flow_hist": flow_hist,                   # 近5日主力资金
+            "consecutive_outflow_3d": neg_days >= 3,  # 连续3日净流出
+        }
+    except Exception as e:
+        print(f"Stock profile获取失败: {e}", file=sys.stderr)
+    return {}
+
+
+def get_risk_signals(profile: dict, change_pct: float, tech: dict) -> list[tuple[str, str, str]]:
+    """检测七大风险信号
+    
+    Returns: [(icon, risk_type, description), ...]
+    """
+    risks = []
+    
+    # 1. 估值风险：连续3日涨幅≥30% 或 PE≥100
+    if profile.get("pe", 0) >= 100:
+        risks.append(("🔴", "估值风险", f"PE={profile['pe']}，估值偏高"))
+    
+    # 2. 资金风险：连续3日主力净流出
+    if profile.get("consecutive_outflow_3d"):
+        risks.append(("🔴", "资金风险", "连续3日主力净流出，动能衰竭"))
+    
+    # 3. 过热风险：换手率≥20%（注：f167字段暂不启用，待确认）
+    # if profile.get("turnover_rate", 0) >= 20:
+    #     risks.append(("🟠", "过热风险", f"换手率{profile['turnover_rate']}%，注意回调风险"))
+    
+    # 4. 涨幅预警
+    if change_pct >= 75:
+        risks.append(("🔴", "红旗预警", f"涨幅{change_pct:.0f}%，泡沫化风险极高"))
+    elif change_pct >= 60:
+        risks.append(("🟠", "黄灯预警", f"涨幅{change_pct:.0f}%，建议减仓"))
+    elif change_pct >= 40:
+        risks.append(("🟡", "观察预警", f"涨幅{change_pct:.0f}%，需验证基本面"))
+    
+    # 5. RSI超买
+    rsi = tech.get("rsi14") if isinstance(tech, dict) else None
+    if rsi and rsi >= 80:
+        risks.append(("🟠", "RSI过热", f"RSI={rsi}，进入超买区域"))
+    elif rsi and rsi >= 70:
+        risks.append(("🟡", "RSI偏高", f"RSI={rsi}，接近超买区域"))
+    
+    return risks
+
+
+def calculate_position_limit(
+    market_risk: str,        # "low"/"medium"/"high"/"extreme"
+    market_cap: float,         # 流通市值（亿元）
+    risk_count: int,           # 风险信号数量
+    stage: str                 # 生命周期阶段
+) -> str:
+    """计算仓位上限建议
+    
+    最终仓位 = 基础仓位 × 大盘风险系数 × 流通市值系数
+    """
+    # 基础仓位（由阶段决定）
+    base_limits = {
+        "爆发期": 30,
+        "成熟期": 20,
+        "萌芽期": 15,
+        "震荡期": 10,
+        "衰退期": 0,
+    }
+    base = base_limits.get(stage, 10)
+    
+    # 大盘风险系数
+    market_coef = {
+        "low": 1.0,
+        "medium": 0.6,
+        "high": 0.3,
+        "extreme": 0.1,
+    }.get(market_risk, 0.6)
+    
+    # 流通市值系数
+    if market_cap < 30:
+        cap_coef = 0.5
+        cap_note = "<30亿，流动性风险高"
+    elif market_cap < 50:
+        cap_coef = 0.8
+        cap_note = "30-50亿"
+    else:
+        cap_coef = 1.0
+        cap_note = ">50亿，正常"
+    
+    # 禁止推荐检测
+    if market_cap < 20:
+        return "❌ 禁止推荐（流通市值<20亿）"
+    if risk_count >= 5:
+        return "❌ 清仓回避（≥5个风险信号）"
+    
+    final = base * market_coef * cap_coef
+    
+    # 风险等级调整
+    if risk_count >= 3:
+        final = min(final, 5)  # 最多5%
+    elif risk_count >= 1:
+        final = min(final, base * cap_coef * 0.5)
+    
+    final = max(final, 0)
+    return f"建议仓位: ≤{final:.0f}%  ({cap_note})"
+
+
+def build_conclusion(result: dict, market_pct: float, profile: dict = None) -> str:
     """综合所有维度输出结论性判断
     
     核心逻辑：
     1. 大盘方向（定贝塔）
     2. 资金多空博弈（定主力意图）
     3. 生命周期（定胜率）
-    4. 技术信号（定入场点）
+    4. 七大风险检测（定风险）
+    5. 仓位上限（定仓位）
     """
     realtime = result.get("realtime", {})
     change_pct = realtime.get("change_pct", 0)
@@ -1109,25 +1262,30 @@ def build_conclusion(result: dict, market_pct: float) -> str:
     lifecycle = result.get("lifecycle", {})
     sr = result.get("support_resistance", {}).get("today", {})
     tech = result.get("technicals", {})
-    minute = result.get("minute_analysis", {})
     
+    profile = profile or {}
     lines = ["", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"]
     lines.append("🎯 综合结论")
     lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     
-    verdicts = []  # 收集所有分项结论
+    verdicts = []  # 收集分项结论
     
-    # ── 1. 大盘定调 ──
+    # ── 0. 大盘定调 ──
+    market_risk = "medium"
     if market_pct < -0.5:
-        verdicts.append(("⚠️ 大盘弱势", "贝塔下行，整体市场偏空，选股难度大"))
+        verdicts.append(("🔴", "大盘弱势", "贝塔下行，整体市场偏空，选股难度大"))
+        market_risk = "high"
     elif market_pct < -0.1:
-        verdicts.append(("🔴 大盘偏弱", "谨慎做多，避免重仓"))
+        verdicts.append(("🔴", "大盘偏弱", "谨慎做多，避免重仓"))
+        market_risk = "medium"
     elif market_pct > 0.5:
-        verdicts.append(("🟢 大盘强势", "顺势做多，积极参与"))
+        verdicts.append(("🟢", "大盘强势", "顺势做多，积极参与"))
+        market_risk = "low"
     else:
-        verdicts.append(("⚪ 大盘震荡", "方向不明，精选个股"))
+        verdicts.append(("⚪", "大盘震荡", "方向不明，精选个股"))
+        market_risk = "medium"
     
-    # ── 2. 多空博弈定意图 ──
+    # ── 1. 多空博弈定意图 ──
     if level2.get("minute_data"):
         total_main = level2.get("total_main", 0)
         super_large = level2.get("total_super", 0)
@@ -1135,50 +1293,65 @@ def build_conclusion(result: dict, market_pct: float) -> str:
         institution_net = super_large + big
         
         if total_main > 1e8 and institution_net > 0:
-            verdicts.append(("✅ 机构真金白银", "超大+大单净流入，主力真正抢筹"))
+            verdicts.append(("🟢", "机构真金白银", "超大+大单净流入，主力真正抢筹"))
         elif total_main > 1e8 and institution_net < 0:
-            verdicts.append(("⚠️ 机构派发", "机构净流出+散户净买入，警惕主力出货"))
+            verdicts.append(("🔴", "机构派发", "机构净流出+散户净买入，警惕主力出货"))
         elif institution_net > 0:
-            verdicts.append(("✅ 机构在布局", "机构主导，但规模有限"))
+            verdicts.append(("🟢", "机构在布局", "机构主导，但规模有限"))
         elif institution_net < 0:
-            verdicts.append(("🔴 机构撤退", "大资金出逃，上涨难持续"))
+            verdicts.append(("🔴", "机构撤退", "大资金出逃，上涨难持续"))
         else:
-            verdicts.append(("⚪ 多空均衡", "主力观望，等待信号"))
+            verdicts.append(("⚪", "多空均衡", "主力观望，等待信号"))
     
-    # ── 3. 生命周期定阶段 ──
+    # ── 2. 生命周期定阶段 ──
     stage = lifecycle.get("stage", "")
     if stage == "爆发期":
-        verdicts.append(("🚀 爆发期", "量价齐升，主升浪初期，胜率最高"))
+        verdicts.append(("🟢", "爆发期", "量价齐升，主升浪初期，胜率最高"))
     elif stage == "成熟期":
-        verdicts.append(("🔥 成熟期", "高位放量，注意主力高位派发风险"))
+        verdicts.append(("🟡", "成熟期", "高位放量，注意主力高位派发风险"))
     elif stage == "衰退期":
-        verdicts.append(("💤 衰退期", "量能萎缩，趋势向下，规避"))
+        verdicts.append(("🔴", "衰退期", "量能萎缩，趋势向下，规避"))
     elif stage == "萌芽期":
-        verdicts.append(("🌱 萌芽期", "量能温和，仍在蓄力，等待确认信号"))
+        verdicts.append(("⚪", "萌芽期", "量能温和，仍在蓄力，等待确认信号"))
     else:
-        verdicts.append(("⚖️ 震荡期", "方向不明，等待趋势明朗"))
+        verdicts.append(("⚪", "震荡期", "方向不明，等待趋势明朗"))
+    
+    # ── 3. 七大风险检测 ──
+    risks = get_risk_signals(profile, change_pct, tech)
+    risk_count = len(risks)
+    if risks:
+        lines.append("")
+        lines.append("  ⚠️ 风险预警：")
+        for icon, rtype, desc in risks:
+            lines.append(f"    {icon} {rtype}：{desc}")
     
     # ── 4. 综合结论 ──
-    # 统计各维度信号
-    positive = sum(1 for v in verdicts if v[0].startswith(("🟢", "✅", "🚀", "🌱")))
-    negative = sum(1 for v in verdicts if v[0].startswith(("🔴", "⚠️", "💤")))
+    positive = sum(1 for _, _, _ in [(v[0],v[1],v[2]) for v in verdicts if v[0] in ("🟢", "✅")] for _ in [None])
+    # 重新统计
+    pos_count = sum(1 for v in verdicts if v[0] == "🟢")
+    neg_count = sum(1 for v in verdicts if v[0] == "🔴")
+    # 加上风险数
+    neg_count += risk_count
     
-    # 最终判断
-    if positive >= 3:
+    if pos_count >= 3 and neg_count == 0:
         final_verdict = "积极关注"
         final_note = "多方信号共振，中短期胜率较高"
-    elif negative >= 3:
+    elif neg_count >= 3:
         final_verdict = "保持谨慎"
         final_note = "空方信号占优，建议等待或观望"
-    elif positive == negative:
+    elif pos_count > neg_count:
+        final_verdict = "轻仓试探"
+        final_note = "方向偏多但需严格止损"
+    elif neg_count > pos_count:
+        final_verdict = "谨慎防御"
+        final_note = "空方信号偏多，严格控制风险"
+    else:
         final_verdict = "方向不明"
         final_note = "多空信号均衡，等待趋势明朗"
-    else:
-        final_verdict = "轻仓试探" if positive > negative else "谨慎防御"
-        final_note = "方向偏多但需严格止损" if positive > negative else "方向偏空，关注支撑位得失"
     
-    for tag, desc in verdicts:
-        lines.append(f"  {tag}  {desc}")
+    lines.append("")
+    for icon, tag, desc in verdicts:
+        lines.append(f"  {icon} {tag}：{desc}")
     
     lines.append("")
     lines.append(f"  ╔══════════════════════════════════════╗")
@@ -1186,7 +1359,36 @@ def build_conclusion(result: dict, market_pct: float) -> str:
     lines.append(f"  ║  {final_note:<34}       ║")
     lines.append(f"  ╚══════════════════════════════════════╝")
     
-    # ── 关键价位提醒 ──
+    # ── 5. 仓位上限 ──
+    # 流通市值（亿元，f162单位=亿元）
+    market_cap_yi = profile.get("circ_market_cap", 0)  # 亿元
+    position_advice = calculate_position_limit(market_risk, market_cap_yi, risk_count, stage)
+    lines.append(f"")
+    lines.append(f"  📊 {position_advice}")
+    
+    if market_cap_yi > 0:
+        cap_tag = "🔴" if market_cap_yi < 30 else "🟡" if market_cap_yi < 50 else "🟢"
+        lines.append(f"    {cap_tag} 流通市值: {market_cap_yi:.0f}亿")
+    
+    # ── 6. 基本面参考 ──
+    if profile.get("pe"):
+        pe = profile["pe"]
+        pe_tag = "🔴" if pe >= 100 else "🟡" if pe >= 50 else "🟢"
+        lines.append(f"    {pe_tag} 市盈率PE: {pe:.1f}")
+    
+    # 注：换手率字段f167数据异常，暂不显示
+    
+    # ── 7. 近5日资金流向（如果有） ──
+    flow_hist = profile.get("flow_hist", [])
+    if flow_hist:
+        lines.append(f"")
+        lines.append(f"  💰 近5日主力资金：")
+        for f in flow_hist[:5]:
+            arrow = "▲" if f["main_net"] > 0 else "▼"
+            color = "🟢" if f["main_net"] > 0 else "🔴"
+            lines.append(f"    {color} {f['date'][-5:]}  {arrow}{abs(f['main_net'])/1e8:+.2f}亿")
+    
+    # ── 8. 关键价位操作参考 ──
     if sr:
         current = sr.get("current", 0)
         stop_loss = sr.get("stop_loss", 0)
@@ -1195,10 +1397,15 @@ def build_conclusion(result: dict, market_pct: float) -> str:
             loss_pct = (current - stop_loss) / current * 100
             lines.append(f"")
             lines.append(f"  📌 操作参考：")
-            lines.append(f"    现价 {current:.2f}，若跌破 {stop_loss:.2f}（-{loss_pct:.1f}%）止损")
-            if resistance:
+            lines.append(f"    现价 {current:.2f}，若跌破 {stop_loss:.2f}（-{loss_pct:.1f}%）立即止损")
+            if resistance and resistance > current:
                 gain_pct = (resistance - current) / current * 100
                 lines.append(f"    若突破 {resistance:.2f}（+{gain_pct:.1f}%）可考虑加仓")
+            # 止盈参考
+            take_profit = sr.get("take_profit", 0)
+            if take_profit and take_profit > current:
+                profit_pct = (take_profit - current) / current * 100
+                lines.append(f"    止盈参考: {take_profit:.2f}（+{profit_pct:.1f}%）")
     
     return "\n".join(lines)
 
@@ -1371,6 +1578,10 @@ def analyze_stock(code: str, with_minute: bool = False, with_tech: bool = False,
         lifecycle = detect_lifecycle_stage(code)
         result["lifecycle"] = lifecycle
     
+    # 基本面档案（市值/PE/换手率/近5日资金流向）
+    profile = fetch_stock_profile_em(code)
+    result["profile"] = profile
+    
     return result
 
 
@@ -1495,7 +1706,7 @@ def main():
                     print(format_lifecycle(lc))
             
             # 综合结论
-            print(build_conclusion(result, sh_pct))
+            print(build_conclusion(result, sh_pct, result.get("profile", {})))
             
             print()
 
