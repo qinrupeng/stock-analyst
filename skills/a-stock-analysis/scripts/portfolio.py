@@ -168,16 +168,25 @@ def analyze_portfolio():
         
         cost_value = cost * qty
         market_value = realtime["price"] * qty
-        pnl = market_value - cost_value
-        pnl_pct = (realtime["price"] / cost - 1) * 100
         
-        total_cost += cost_value
-        total_value += market_value
+        # 手续费计算（更真实的盈亏）
+        # 买入：佣金0.03% + 过户费0.001% ≈ 0.031%
+        # 卖出：印花税0.1% + 佣金0.03% + 过户费0.001% ≈ 0.131%
+        buy_fee = round(cost_value * 0.00031, 2)
+        sell_fee = round(market_value * 0.00131, 2)
+        net_cost = cost_value + buy_fee          # 真实买入成本
+        net_value = market_value - sell_fee        # 真实卖出可得
+        pnl = net_value - net_cost
+        pnl_pct = (net_value / net_cost - 1) * 100
+        
+        total_cost += net_cost
+        total_value += net_value
         
         print(format_realtime(realtime))
         print(f"\n【持仓盈亏】")
         print(f"  成本: {cost:.3f}  持仓: {qty}股")
-        print(f"  成本市值: {cost_value:.0f}  当前市值: {market_value:.0f}")
+        print(f"  买入成本: {cost_value:.0f} + 手续费{buy_fee:.0f} = {net_cost:.0f}")
+        print(f"  当前市值: {market_value:.0f} - 卖出手续费{sell_fee:.0f} = {net_value:.0f}")
         print(f"  盈亏: {pnl:+.0f} ({pnl_pct:+.2f}%)")
         
         if "minute_analysis" in result:

@@ -22,6 +22,7 @@ import re
 import sys
 import urllib.request
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Optional
 
 
@@ -380,6 +381,59 @@ def analyze_minute_volume(minute_data: list[dict]) -> dict:
     }
 
 
+def get_watch_file(code: str) -> Path:
+    """获取股票监控状态文件路径"""
+    return Path.home() / ".clawdbot" / "skills" / "a-stock-analysis" / f"watch_{code}.json"
+
+
+def load_watch_state(code: str) -> dict | None:
+    """加载上次运行状态"""
+    f = get_watch_file(code)
+    if f.exists():
+        try:
+            return json.loads(f.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+    return None
+
+
+def save_watch_state(code: str, state: dict):
+    """保存当前运行状态"""
+    f = get_watch_file(code)
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def diff_watch(code: str, current: dict) -> list[str]:
+    """对比上次状态，返回告警列表"""
+    prev = load_watch_state(code)
+    alerts = []
+    if not prev:
+        alerts.append(f"初次记录: {current['name']}({code}) 现价={current['price']:.2f}")
+    else:
+        prev_price = prev.get("price", 0)
+        curr_price = current["price"]
+        if prev_price > 0:
+            pct = (curr_price - prev_price) / prev_price * 100
+            abs_chg = curr_price - prev_price
+            if abs(abs_chg) >= 0.05:  # 涨跌超过5分钱
+                direction = "🚀 上涨" if abs_chg > 0 else "🔻 下跌"
+                alerts.append(f"{direction}: {current['name']}({code}) {prev_price:.2f} → {curr_price:.2f} ({pct:+.2f}%)")
+            # 监控RSI超买超卖变化
+            prev_rsi = prev.get("rsi14")
+            curr_rsi = current.get("rsi14")
+            if prev_rsi is not None and curr_rsi is not None:
+                if prev_rsi >= 70 and curr_rsi < 70:
+                    alerts.append(f"⚠️ RSI脱离超买区: {current['name']} {prev_rsi}→{curr_rsi}")
+                elif prev_rsi <= 30 and curr_rsi > 30:
+                    alerts.append(f"⚠️ RSI脱离超卖区: {current['name']} {prev_rsi}→{curr_rsi}")
+                elif curr_rsi > 70:
+                    alerts.append(f"⚠️ RSI超买: {current['name']} RSI={curr_rsi}")
+                elif curr_rsi < 30:
+                    alerts.append(f"⚠️ RSI超卖: {current['name']} RSI={curr_rsi}")
+    return alerts
+
+
 def fetch_daily_data_em(code: str, days: int = 60) -> list[dict]:
     """从东方财富获取日K线数据（用于技术指标计算）
     
@@ -593,9 +647,13 @@ def main():
     parser.add_argument("codes", nargs="+", help="股票代码，如 600789 002446")
     parser.add_argument("--minute", "-m", action="store_true", help="包含分时量能分析")
     parser.add_argument("--tech", "-t", action="store_true", help="包含技术指标(RSI/MACD)")
+    parser.add_argument("--watch", "-w", action="store_true", help="监控模式：对比上次价格，有异动则告警")
     parser.add_argument("--json", "-j", action="store_true", help="JSON格式输出")
     
     args = parser.parse_args()
+    
+    # 监控模式下强制拉取技术指标（用于RSI告警）
+    fetch_tech = args.tech or args.watch
     
     # 批量获取实时行情
     sina_symbols = [get_sina_symbol(code) for code in args.codes]
@@ -603,7 +661,7 @@ def main():
     
     results = []
     for code in args.codes:
-        result = analyze_stock(code, with_minute=args.minute, with_tech=args.tech, realtime_cache=realtime_cache)
+        result = analyze_stock(code, with_minute=args.minute, with_tech=fetch_tech, realtime_cache=realtime_cache)
         results.append(result)
     
     if args.json:
@@ -612,6 +670,32 @@ def main():
         for result in results:
             if "error" in result:
                 print(f"错误: {result['error']}")
+                continue
+            
+            # 监控模式
+            if args.watch:
+                code = result["code"]
+                # 构建用于存储的状态（只存关键字段）
+                watch_state = {
+                    "code": code,
+                    "name": result["name"],
+                    "price": result["realtime"]["price"],
+                    "change_pct": result["realtime"]["change_pct"],
+                    "rsi14": result.get("technicals", {}).get("rsi14"),
+                    "updated_at": datetime.now().isoformat(),
+                }
+                alerts = diff_watch(code, watch_state)
+                if alerts:
+                    print(f"\n{'='*50}")
+                    print(f"  【监控告警】{datetime.now().strftime('%H:%M:%S')}")
+                    print(f"{'='*50}")
+                    for alert in alerts:
+                        print(f"  {alert}")
+                    print(f"  现价: {watch_state['price']:.2f}  ({'+' if watch_state['change_pct']>=0 else ''}{watch_state['change_pct']:.2f}%)")
+                else:
+                    print(f"{result['name']}({code}) 平稳: {watch_state['price']:.2f}")
+                # 保存状态
+                save_watch_state(code, watch_state)
                 continue
             
             print(format_realtime(result["realtime"]))

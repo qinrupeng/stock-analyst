@@ -27,6 +27,9 @@ uv run {baseDir}/scripts/analyze.py 600789 --tech
 # 同时含分时+技术指标
 uv run {baseDir}/scripts/analyze.py 600789 --minute --tech
 
+# 监控模式：对比上次价格，有异动时告警
+uv run {baseDir}/scripts/analyze.py 600789 --watch
+
 # JSON输出
 uv run {baseDir}/scripts/analyze.py 600789 --json
 ```
@@ -54,9 +57,9 @@ uv run {baseDir}/scripts/portfolio.py analyze
 
 直接使用6位数字代码即可，系统自动识别市场：
 
-- **沪市**: 6开头 (如 600789)
+- **沪市**: 6开头 (如 600789)，含科创板688xxx
 - **深市**: 0或3开头 (如 002446, 300001)
-- **北交所**: 8或4开头
+- **北交所**: 4开头 (如 430001) — 8开头为退市整理期，不推荐
 
 ## 分时量能分析说明
 
