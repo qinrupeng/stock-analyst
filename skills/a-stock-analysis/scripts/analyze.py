@@ -291,11 +291,9 @@ def get_level2_signal(flow: dict, market_pct: float = 0) -> list[str]:
 
 
 def format_level2(flow: dict, signals: list[str]) -> str:
-    """格式化Level2资金流完整输出"""
+    """格式化Level2资金流完整输出（视觉化版本）"""
     if not flow["minute_data"]:
         return "\n【Level2主力资金】数据获取失败"
-    
-    lines = ["", "【Level2主力资金流向】"]
     
     total_main = flow["total_main"]
     total_super = flow["total_super"]
@@ -303,12 +301,32 @@ def format_level2(flow: dict, signals: list[str]) -> str:
     total_mid = flow["total_mid"]
     total_small = flow["total_small"]
     
-    # :+.2f 已包含符号，避免重复
-    lines.append(f"  主力净流入: {total_main/1e8:+.2f}亿")
-    lines.append(f"    超大单: {total_super/1e8:+.2f}亿")
-    lines.append(f"    大单:   {total_big/1e8:+.2f}亿")
-    lines.append(f"    中单:   {total_mid/1e8:+.2f}亿")
-    lines.append(f"    小单:   {total_small/1e8:+.2f}亿")
+    # 找最大绝对值用于归一化
+    max_val = max(abs(total_super), abs(total_big), abs(total_mid), abs(total_small))
+    bar_width = 16
+    
+    def flow_bar(val: float) -> str:
+        if max_val == 0:
+            return "░" * bar_width
+        pct = abs(val) / max_val
+        filled = int(pct * bar_width)
+        sign = "▲" if val >= 0 else "▼"
+        return sign + "█" * filled + "░" * (bar_width - filled)
+    
+    # 净流入方向icon
+    main_icon = "🟢" if total_main >= 0 else "🔴"
+    main_label = "净流入" if total_main >= 0 else "净流出"
+    
+    lines = [
+        "",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        f"💰 Level2资金流  {main_icon} 主力{main_label}: {total_main/1e8:+.2f}亿",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        f"  超大单  {flow_bar(total_super)}  {total_super/1e8:+.2f}亿",
+        f"  大单    {flow_bar(total_big)}  {total_big/1e8:+.2f}亿",
+        f"  中单    {flow_bar(total_mid)}  {total_mid/1e8:+.2f}亿",
+        f"  小单    {flow_bar(total_small)}  {total_small/1e8:+.2f}亿",
+    ]
     
     if signals:
         lines.append("")
@@ -397,19 +415,39 @@ def calculate_support_resistance(code: str) -> dict:
 
 
 def format_support_resistance(sr: dict) -> str:
-    """格式化支撑压力位输出"""
+    """格式化支撑压力位输出（视觉化版本）"""
     if not sr:
         return ""
-    lines = ["", "【参考价位】"]
+    
     bb = sr.get("bollinger", {})
     today = sr.get("today", {})
+    
+    lines = [
+        "",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "📍 参考价位",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    ]
+    
     if bb:
-        lines.append(f"  布林带(20日): 上轨={bb['upper']} 中={bb['ma20']} 下轨={bb['lower']}")
+        lines.append(f"  布林带(20日)  上={bb['upper']}  中={bb['ma20']}  下={bb['lower']}")
+    
     if today:
-        lines.append(f"  今日: 高={today['high']} 低={today['low']} 现={today['current']}")
-        lines.append(f"  压力: {today.get('resistance1','?')} / {today.get('resistance2','?')}")
-        lines.append(f"  支撑: {today.get('support1','?')} / {today.get('support2','?')}")
-        lines.append(f"  止损参考: {today.get('stop_loss','?')}  止盈参考: {today.get('take_profit','?')}")
+        current = today.get("current", 0)
+        resistance1 = today.get("resistance1", 0)
+        support1 = today.get("support1", 0)
+        stop_loss = today.get("stop_loss", 0)
+        take_profit = today.get("take_profit", 0)
+        
+        lines.append(f"  今日区间  {today.get('high')}（高） / {today.get('low')}（低）")
+        lines.append("")
+        lines.append(f"  🔴 压力位   {resistance1:.2f}")
+        lines.append(f"  🟡 今日价   {current:.2f}")
+        lines.append(f"  🟢 支撑位   {support1:.2f}")
+        lines.append("")
+        lines.append(f"  ⚠️ 止损参考  {stop_loss:.2f}  (跌破则离场)")
+        lines.append(f"  🎯 止盈参考  {take_profit:.2f}  (接近可考虑减仓)")
+    
     return "\n".join(lines)
 
 
@@ -484,14 +522,52 @@ def vl_to_text(ratio: float) -> str:
 
 
 def format_lifecycle(stage_info: dict) -> str:
-    """格式化生命周期输出"""
+    """格式化生命周期输出（视觉化版本）"""
     if not stage_info:
         return ""
-    lines = ["", "【热点生命周期】"]
-    lines.append(f"  当前阶段: {stage_info['stage']}")
-    lines.append(f"  {stage_info['description']}")
-    lines.append(f"  量能比(近3日/前5日): {stage_info['vol_ratio_3d_vs_5d']}x")
-    lines.append(f"  价格动量(近3日): {stage_info['price_momentum_3d']:+.1f}%")
+    
+    stage = stage_info["stage"]
+    stage_icons = {
+        "萌芽期": "🌱",
+        "爆发期": "🚀",
+        "成熟期": "🔥",
+        "衰退期": "💤",
+        "震荡期": "⚖️",
+    }
+    icon = stage_icons.get(stage, "⚪")
+    
+    vol_ratio = stage_info.get("vol_ratio_3d_vs_5d", 0)
+    price_momentum = stage_info.get("price_momentum_3d", 0)
+    
+    # 量能比条形图
+    max_ratio = max(vol_ratio, 2.0)  # 标准化到2x满格
+    vol_bar_len = min(int(vol_ratio / max_ratio * 16), 16)
+    vol_bar = "█" * vol_bar_len + "░" * (16 - vol_bar_len)
+    
+    # 价格动量颜色
+    if price_momentum > 5:
+        price_icon = "▲▲"
+        price_color = "🔴"
+    elif price_momentum > 0:
+        price_icon = "▲"
+        price_color = "🟡"
+    elif price_momentum < -5:
+        price_icon = "▼▼"
+        price_color = "🔴"
+    else:
+        price_icon = "▼"
+        price_color = "🟢"
+    
+    lines = [
+        "",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        f"🌡️ 热点生命周期  {icon} {stage}",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        f"  {stage_info['description']}",
+        "",
+        f"  量能比(近3日/前5日)  {vol_bar}  {vol_ratio:.2f}x",
+        f"  价格动量(近3日)      {price_color} {price_icon} {price_momentum:+.1f}%",
+    ]
     return "\n".join(lines)
 
 
@@ -1020,83 +1096,105 @@ def calculate_macd(closes: list[float], fast: int = 12, slow: int = 26, signal: 
 
 def format_technicals(tech: dict) -> str:
     """格式化技术指标输出"""
-    lines = ["", "【技术指标】"]
+    lines = [
+        "",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "📊 技术指标",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    ]
+    
     rsi = tech.get("rsi14")
     if rsi is not None:
-        rsi_level = "超买" if rsi > 70 else "超卖" if rsi < 30 else "正常"
-        lines.append(f"  RSI(14): {rsi}  ({rsi_level})")
+        if rsi > 70:
+            rsi_icon = "🔴"
+            rsi_label = "超买区"
+        elif rsi < 30:
+            rsi_icon = "🟢"
+            rsi_label = "超卖区"
+        else:
+            rsi_icon = "⚪"
+            rsi_label = "中性"
+        lines.append(f"  RSI(14)   {rsi_icon} {rsi}  → {rsi_label}")
+    
     macd = tech.get("macd")
     if macd:
         hist = macd.get("histogram", 0)
-        hist_str = f"{hist:+.4f}"
         if hist > 0:
-            hist_label = "MACD金叉（多头）"
+            macd_icon = "🟢"
+            macd_label = "金叉（多头）"
         elif hist < 0:
-            hist_label = "MACD死叉（空头）"
+            macd_icon = "🔴"
+            macd_label = "死叉（空头）"
         else:
-            hist_label = "MACD零点"
-        lines.append(f"  MACD(12,26,9): MACD={macd.get('macd'):.4f}  Signal={macd.get('signal'):.4f}  Hist={hist_str}  ({hist_label})")
+            macd_icon = "⚪"
+            macd_label = "零点"
+        lines.append(f"  MACD      {macd_icon} Hist={hist:+.4f}  → {macd_label}")
+        lines.append(f"            DIF={macd.get('macd'):.4f}  DEA={macd.get('signal'):.4f}")
+    
     return "\n".join(lines)
 
 
 def format_realtime(data: dict) -> str:
     """格式化实时行情输出"""
-    change_symbol = "+" if data["change_pct"] >= 0 else ""
-    turnover_str = f"换手: {data['turnover']:.2f}%" if data.get("turnover") else ""
+    change_pct = data["change_pct"]
+    arrow = "▲" if change_pct > 0 else "▼" if change_pct < 0 else "—"
+    sign = "+" if change_pct > 0 else ""
+    color_tag = "🔴" if change_pct > 2 else "🟡" if change_pct > 0 else "🟢" if change_pct < -2 else "⚪"
     
     lines = [
-        f"{'='*60}",
-        f"股票: {data['name']} ({data['code']})",
-        f"{'='*60}",
-        f"",
-        f"【实时行情】",
-        f"  现价: {data['price']:.2f}  涨跌: {change_symbol}{data['change_pct']:.2f}%",
-        f"  今开: {data['open']:.2f}  最高: {data['high']:.2f}  最低: {data['low']:.2f}",
-        f"  昨收: {data['pre_close']:.2f}  {turnover_str}",
-        f"  成交量: {data['volume']/10000:.1f}万手  成交额: {data['amount']/100000000:.2f}亿",
+        "",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        f"🏽 实时行情 {color_tag} 现价 {data['price']:.2f}  {arrow}{sign}{change_pct:.2f}%",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        f"  今日区间  {data['open']:.2f} → {data['high']:.2f}（高） / {data['low']:.2f}（低）",
+        f"  昨收: {data['pre_close']:.2f}    成交: {data['volume']/10000:.1f}万手  {data['amount']/100000000:.2f}亿",
     ]
     return "\n".join(lines)
 
 
 def format_minute_analysis(analysis: dict, name: str = "", market_pct: float = None) -> str:
-    """格式化分时分析输出
-    
-    Args:
-        market_pct: 大盘涨跌幅%，用于标注市场环境
-    """
+    """格式化分时分析输出（视觉化版本）"""
     if "error" in analysis:
         return f"分时分析错误: {analysis['error']}"
     
     source = analysis.get("data_source", "新浪")
-    
-    # 大盘环境标注
     market_tag = ""
     if market_pct is not None:
         arrow = "▲" if market_pct > 0 else "▼" if market_pct < 0 else "—"
-        market_tag = f" [大盘:{arrow}{abs(market_pct):.2f}%]"
+        sign = "+" if market_pct > 0 else ""
+        market_tag = f" {arrow}{sign}{abs(market_pct):.2f}%"
+    
+    dist = analysis["distribution"]
+    total_vol = analysis["total_volume"]
+    
+    def bar(pct: float, width: int = 20) -> str:
+        filled = int(pct / 100 * width)
+        empty = width - filled
+        return "█" * filled + "░" * empty
     
     lines = [
-        f"",
-        f"【分时量能分析】{name}{market_tag} [数据源:{source}]",
-        f"  全天成交: {analysis['total_volume']}手 ({analysis['total_amount']/10000:.1f}万元)",
-        f"",
-        f"  成交分布:",
-        f"    早盘30分(9:30-10:00): {analysis['distribution']['open_30min']['volume']}手 ({analysis['distribution']['open_30min']['percent']}%)",
-        f"    上午中段(10:00-11:30): {analysis['distribution']['mid_am']['volume']}手 ({analysis['distribution']['mid_am']['percent']}%)",
-        f"    下午中段(13:00-14:30): {analysis['distribution']['mid_pm']['volume']}手 ({analysis['distribution']['mid_pm']['percent']}%)",
-        f"    尾盘30分(14:30-15:00): {analysis['distribution']['close_30min']['volume']}手 ({analysis['distribution']['close_30min']['percent']}%)",
-        f"",
-        f"  放量时段 TOP 10:",
+        "",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        f"🔥 分时量能{market_tag}  [源:{source}]",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        f"  全天成交  {total_vol:,}手  ({analysis['total_amount']/10000:.0f}万)",
+        "",
+        "  成交分布：",
+        f"  🕘 早盘30分  {bar(dist['open_30min']['percent'])} {dist['open_30min']['percent']:5.1f}%  ({dist['open_30min']['volume']:,}手)",
+        f"  🌙 上午中段  {bar(dist['mid_am']['percent'])} {dist['mid_am']['percent']:5.1f}%  ({dist['mid_am']['volume']:,}手)",
+        f"  🌤️ 下午中段  {bar(dist['mid_pm']['percent'])} {dist['mid_pm']['percent']:5.1f}%  ({dist['mid_pm']['volume']:,}手)",
+        f"  🌙 尾盘30分  {bar(dist['close_30min']['percent'])} {dist['close_30min']['percent']:5.1f}%  ({dist['close_30min']['volume']:,}手)",
+        "",
+        "  放量TOP3：",
     ]
     
-    for item in analysis["top_volumes"]:
-        lines.append(f"    {item['time']} 价格:{item['price']:.2f} 成交:{item['volume']}手 金额:{item['amount']/10000:.1f}万")
+    for item in analysis["top_volumes"][:3]:
+        lines.append(f"    ⏰ {item['time']}  {item['price']:.2f}  {item['volume']:,}手")
     
     if analysis["signals"]:
-        lines.append(f"")
-        lines.append(f"  【主力动向判断】")
+        lines.append("")
         for signal in analysis["signals"]:
-            lines.append(f"    🔥 {signal}")
+            lines.append(f"  {signal}")
     
     return "\n".join(lines)
 
@@ -1207,12 +1305,19 @@ def main():
     else:
         # 显示大盘环境
         if indices:
-            print(f"{'='*60}")
-            print(f"【大盘环境】{mood}  建议: {signal}")
-            print(f"{'='*60}")
+            # 大盘状态icon
+            avg_pct = sum(v["change_pct"] for v in indices.values()) / len(indices)
+            mood_icon = "🟢" if avg_pct > 0.3 else "🔴" if avg_pct < -0.3 else "⚪"
+            now_str = datetime.now().strftime("%H:%M")
+            
+            print(f"{'═' * 56}")
+            print(f"  📊 大盘环境  {mood_icon} {mood}  |  建议: {signal}  |  {now_str}")
+            print(f"{'═' * 56}")
             for sym, info in indices.items():
-                arrow = "+" if info["change_pct"] >= 0 else ""
-                print(f"  {info['name']}: {info['price']:.2f}  {arrow}{info['change_pct']:.2f}%")
+                arrow = "▲" if info["change_pct"] > 0 else "▼" if info["change_pct"] < 0 else "—"
+                sign = "+" if info["change_pct"] > 0 else ""
+                color = "🟢" if info["change_pct"] > 0 else "🔴" if info["change_pct"] < 0 else "⚪"
+                print(f"  {color} {info['name']:<6} {info['price']:>10.2f}  {arrow}{sign}{abs(info['change_pct']):.2f}%")
             print()
         
         for result in results:
@@ -1220,9 +1325,12 @@ def main():
                 print(f"错误: {result['error']}")
                 continue
             
+            code = result["code"]
+            board = result.get("board", "主板")
+            up_limit, _ = get_board_limits(code)
+            
             # 监控模式
             if args.watch:
-                code = result["code"]
                 watch_state = {
                     "code": code,
                     "name": result["name"],
@@ -1233,26 +1341,29 @@ def main():
                 }
                 alerts = diff_watch(code, watch_state)
                 if alerts:
-                    print(f"\n{'='*50}")
-                    print(f"  【监控告警】{datetime.now().strftime('%H:%M:%S')}")
-                    print(f"{'='*50}")
+                    print(f"{'━' * 50}")
+                    print(f"  🚨 监控告警  {datetime.now().strftime('%H:%M:%S')}")
+                    print(f"{'━' * 50}")
                     for alert in alerts:
                         print(f"  {alert}")
                     print(f"  现价: {watch_state['price']:.2f}  ({'+' if watch_state['change_pct']>=0 else ''}{watch_state['change_pct']:.2f}%)")
                 else:
-                    print(f"{result['name']}({code}) 平稳: {watch_state['price']:.2f}")
+                    print(f"  ⏳ {result['name']}({code}) 平稳  {watch_state['price']:.2f}")
                 save_watch_state(code, watch_state)
                 continue
             
+            # ── 股票报告头部 ──
+            change_pct = result["realtime"]["change_pct"]
+            arrow = "▲" if change_pct > 0 else "▼" if change_pct < 0 else "—"
+            sign = "+" if change_pct > 0 else ""
+            color = "🔴" if change_pct > 2 else "🟡" if change_pct > 0 else "🟢" if change_pct < -2 else "⚪"
+            
+            print(f"╔{'═' * 54}╗")
+            price_str = f"{arrow}{sign}{change_pct:.2f}%"
+            print(f"  🏽 {result['name']} ({code})  |  {board}  |  {price_str}")
+            print(f"╚{'═' * 54}╝")
+            
             print(format_realtime(result["realtime"]))
-            
-            # 板块信息
-            board = result.get("board", "主板")
-            up_limit, _ = get_board_limits(code)
-            print(f"  板块: {board} (涨跌停±{up_limit:.0f}%)")
-            
-            if args.minute and "minute_analysis" in result:
-                print(format_minute_analysis(result["minute_analysis"], result["name"], market_pct=sh_pct))
             
             if args.tech and "technicals" in result:
                 print(format_technicals(result["technicals"]))
