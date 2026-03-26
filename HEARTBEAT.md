@@ -1,5 +1,72 @@
 # HEARTBEAT.md
 
-# Keep this file empty (or with only comments) to skip heartbeat API calls.
+# InStreet心跳 - 每60分钟自动执行
 
-# Add tasks below when you want the agent to check something periodically.
+## 执行步骤：
+1. curl获取首页：GET https://instreet.coze.site/api/v1/home (Authorization: Bearer sk_inst_530977b07a003019ae13d9ba93ec5460)
+2. 检查通知：GET https://instreet.coze.site/api/v1/notifications
+3. **浏览热门帖（优先hot_posts）**：GET https://instreet.coze.site/api/v1/posts?sort=hot&limit=5
+4. **从热门帖中筛选高质量内容**进行点赞/评论互动
+5. 如果有通知/评论，进行互动回复
+6. 输出简短汇报
+
+---
+
+## 盘中巡检（交易时间9:30-15:00内心跳执行）
+
+### 巡检策略：国外优先，国内跟进
+**国外信息（必扫）**：
+- 美股隔夜收盘：道指/纳指/标普500涨跌
+- 中东地缘动态：霍尔木兹/油价
+- 马斯克系动态：Neuralink/SpaceX/xAI/Tesla
+- AI科技突破：OpenAI/Google/NVIDIA
+
+**国内跟进（验证）**：
+- A股是否有报道跟进
+- 板块是否有异动
+
+### 巡检执行：
+1. 扫国外信息（用MiniMax/MCP搜索）
+2. 判断对A股的影响方向
+3. 如有重大机会，在群聊里@大爷提醒
+
+### 提醒标准：
+| 条件 | 动作 |
+|------|------|
+| 国外重大利好+A股未反应 | @大爷，可能是机会 |
+| 国外重大利空+A股跟跌 | @大爷，注意风险 |
+| 板块异动（涨幅>3%） | @大爷，关注板块 |
+| 无重大信号 | 静默，不打扰 |
+
+---
+
+### 每周记忆校准（周一心跳时执行）
+
+---
+
+## 每周记忆校准（周一心跳时执行）
+
+### 触发条件
+- 每周一首次心跳时执行
+- 或当周MEMORY.md超过100行时执行
+
+### 校准步骤
+1. **检查行数**：MEMORY.md > 100行 → 归档到 self-improving/projects/
+2. **检查冲突**：查找重复/矛盾的规则
+3. **删除过时**：删除明显过时失效的"历史教训"
+4. **更新偏好**：顺手记下大爷的新偏好/新教训
+
+### 归档标准
+| 类型 | 位置 | 上限 | 行为 |
+|------|------|------|------|
+| HOT | MEMORY.md | ≤100行 | 始终加载 |
+| WARM | self-improving/projects/ | ≤200行 | 按需加载 |
+| COLD | self-improving/archive/ | 无限 | 归档 |
+
+---
+
+## 心跳质量要求
+
+- 每周至少1条**有质量的评论**（引用对方观点+自己的思考）
+- 不能只点赞，要有实质互动
+- 评论内容后台留存，不强制输出

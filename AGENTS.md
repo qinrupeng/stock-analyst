@@ -8,12 +8,55 @@ If `BOOTSTRAP.md` exists, that's your birth certificate. Follow it, figure out w
 
 ## Every Session
 
-Before doing anything else:
+**Before doing anything else - NO EXCEPTIONS:**
 
+0. Read `MEMORY.md` — your long-term memory, contains critical rules
 1. Read `SOUL.md` — this is who you are
 2. Read `USER.md` — this is who you're helping
 3. Read `memory/YYYY-MM-DD.md` (today + yesterday) for recent context
 4. **If in MAIN SESSION** (direct chat with your human): Also read `MEMORY.md`
+
+**If you're asked to generate any A股 report:**
+- Must read corresponding skill's output specification FIRST
+- 热点扫描 → read stock-analyst-cat/references/04-output.md
+- 股票筛选 → read stock-screener SKILL.md
+- 个股分析 → read stock-fullstack-analyst SKILL.md
+
+**强制check：** 每次A股报告输出前必须先声明：
+```
+✅ A股报告自检10项已完成
+---
+[1] ✅ [2] ✅ [3] ✅ [4] ✅ [5] ✅ [6] ✅ [7] ✅ [8] ✅ [9] ✅ [10] ✅
+```
+
+**没有这个声明，不允许输出任何报告！**
+
+**深度分析三件套（必须执行）：**
+- **苏格拉底式提问**：我的假设是什么？有反例吗？逻辑有没有漏洞？换个角度会怎样？大爷会怎么质疑我？
+- **辩论模式**：质疑自己、找漏洞、正反方辩论
+- **预演失败**：写报告前先想哪里会出问题
+- **反向追问**：如果原始输入/数据源头是错的，这个输出还有效吗？答案不确定时必须标注「待验证」，不能输出为确定结论
+
+---
+
+## 【每次任务执行前必查】
+
+**大爷的教训（2026-03-22）**：写文章时跳过了toutiao-article-generator的10步流程，直接手写，导致排版乱七八糟。
+
+**执行前检查清单**：
+```
+□ 1. 是否跳过了技能规定的步骤？
+□ 2. 输出是否符合该技能的规范？
+□ 3. 大爷会满意这个输出吗？
+□ 4. 自检完成了吗？
+□ 5. 我有没有想快点交差的心态？
+```
+
+**禁止事项**：
+- ❌ 禁止跳过技能步骤
+- ❌ 禁止想快点交差
+- ❌ 禁止不读规范就执行
+- ❌ 禁止跳过确认大纲步骤
 
 Don't ask permission. Just do it.
 
@@ -23,8 +66,19 @@ You wake up fresh each session. These files are your continuity:
 
 - **Daily notes:** `memory/YYYY-MM-DD.md` (create `memory/` if needed) — raw logs of what happened
 - **Long-term:** `MEMORY.md` — your curated memories, like a human's long-term memory
+- **Self-improving:** `self-improving/` — structured learning from corrections
 
-Capture what matters. Decisions, context, things to remember. Skip the secrets unless asked to keep them.
+### MEMORY.md 规则
+- **≤100行** — 超过必须归档到 self-improving/
+- 核心规则 + 自检清单 + 禁止事项
+- 详细规范在 self-improving/projects/ 和 domains/
+
+### 归档规则
+| Tier | 位置 | 上限 | 行为 |
+|------|------|------|------|
+| HOT | MEMORY.md | ≤100行 | 始终加载 |
+| WARM | self-improving/projects/domains/ | ≤200行 | 按需加载 |
+| COLD | self-improving/archive/ | 无限 | 归档 |
 
 ### 🧠 MEMORY.md - Your Long-Term Memory
 
@@ -38,12 +92,125 @@ Capture what matters. Decisions, context, things to remember. Skip the secrets u
 
 ### 📝 Write It Down - No "Mental Notes"!
 
+**任何edit操作前的硬性规则：**
+1. 先read原文件（检查有没有内容）
+2. 用exec复制备份：```copy 原文件 备份文件```
+3. 改完后read检查是否被覆盖
+
+违反以上规则，每次必报错。
+
 - **Memory is limited** — if you want to remember something, WRITE IT TO A FILE
 - "Mental notes" don't survive session restarts. Files do.
 - When someone says "remember this" → update `memory/YYYY-MM-DD.md` or relevant file
 - When you learn a lesson → update AGENTS.md, TOOLS.md, or the relevant skill
 - When you make a mistake → document it so future-you doesn't repeat it
 - **Text > Brain** 📝
+
+## 🚫 禁止事项（死命令）
+
+**分析类任务必须带自检声明：**
+```
+✅ 自检完成
+- 代码已校验
+- 数据已验证来源
+- 结论有数据支撑
+- 不确定的地方已标注
+```
+
+**违者必罚：**
+- 禁止关键数据不标注来源
+- 禁止用非最新财报数据（必须用当期财报）
+- 禁止不校验股票代码
+- 禁止分析任务不带"自检声明"
+
+---
+
+## ⚠️ A股报告强制流程（25步，少一步都不行）
+
+### 【步骤①：盘前热点扫描 - 完整25步】
+
+| 步骤 | 检查项 | 状态 |
+|------|--------|------|
+| 1 | ✅ 读取self-improving/memory.md | 必做 |
+| 2 | ✅ 读取04-output.md规范 | 必做 |
+| 3 | ✅ 12项对照检查清单 | 必做 |
+| 4 | ✅ MCP工具检查 | 必做 |
+| 5 | ✅ 时间定位 | 必做 |
+| 6 | ✅ 热点发现层扫描 | 必做 |
+| 7 | ✅ 七层搜索架构完整执行 | 必做 |
+| 8 | ✅ 热点识别与评分 | 必做 |
+| 9 | ✅ 筛选达标热点≥70分 | 必做 |
+| 10 | ✅ 逻辑锻造与风险排查 | 必做 |
+| 11 | ✅ 态势评级判定 | 必做 |
+| 12 | ✅ 信源标准化 | 必做 |
+| 13 | ✅ 主题命名 | 必做 |
+| 14 | ✅ 作战地图完整化 | 必做 |
+| 15 | ✅ 统计全局信息 | 必做 |
+| 16 | ✅ 利好兑现判断 | 必做 |
+| 17 | ✅ 操作建议 | 必做 |
+| 18 | ✅ 质量检查 | 必做 |
+| 19 | ✅ 利好类型判断 | 必做 |
+| 20 | ✅ 反向思维检查 | 必做 |
+| 21 | ✅ 资金行为分析 | 必做 |
+| 22 | ✅ 风险预警前置 | 必做 |
+| 23 | ✅ 开盘资金验证 | 必做 |
+| 24 | ✅ 轮动规律判断 | 必做 |
+| 25 | ✅ 自检对照清单 | 必做 |
+
+**输出前必须展示：**
+```
+✅ 盘前扫描已完成 - 25步全部通过
+---
+[1] ✅ [2] ✅ [3] ✅ [4] ✅ [5] ✅ [6] ✅ [7] ✅ [8] ✅
+[9] ✅ [10] ✅ [11] ✅ [12] ✅ [13] ✅ [14] ✅ [15] ✅ [16] ✅
+[17] ✅ [18] ✅ [19] ✅ [20] ✅ [21] ✅ [22] ✅ [23] ✅ [24] ✅
+[25] ✅
+```
+
+### 【步骤②：股票筛选 - 完整25步】
+
+| 步骤 | 检查项 | 状态 |
+|------|--------|------|
+| 1-3 | ✅ 输入获取 | 必做 |
+| 4-6 | ✅ 情绪扫描 | 必做 |
+| 7-10 | ✅ 资金初筛 | 必做 |
+| 11-14 | ✅ 风险扫描 | 必做 |
+| 15-17 | ✅ 轮动定位 | 必做 |
+| 18-19 | ✅ 三维评分 | 必做 |
+| 20-21 | ✅ 龙虎榜解析 | 必做 |
+| 22-24 | ✅ 时机把握 | 必做 |
+| 25 | ✅ 输出确认8项审核 | 必做 |
+
+### 【规范对照检查 - 12项必查】
+
+每次A股报告输出前，必须逐项对照：
+
+```
+□ 1. 标准头部10项+来源齐全？
+□ 2. 热点数量≥3个？
+□ 3. 主题格式【】+【】+【】+利好类型？
+□ 4. 关键拼图S/A/B/C级排序？
+□ 5. 作战地图4要素完整？
+□ 6. 喵娘洞见6维度完整？
+□ 7. 风险预警5要素？
+□ 8. 行动指令5要素？
+□ 9. 资金表格板块TOP5+个股TOP10？
+□ 10. 大盘数据完整？
+□ 11. 报告结尾数据来源4项？
+□ 12. 时间窗口状态标注？
+
+检查人：自己
+```
+
+---
+
+### 🚨 偷懒惩罚
+
+**连续2次偷懒**：自罚停止接单1天
+**连续3次偷懒**：自罚停止接单3天
+**累计10次偷懒**：写3000字检讨
+
+---
 
 ## Safety
 
