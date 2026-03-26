@@ -177,6 +177,99 @@ def fetch_minute_data_sina(symbol: str, count: int = 250) -> list[dict]:
     return []
 
 
+def get_em_secid(code: str) -> str:
+    """根据股票代码生成东方财富 secid
+    
+    secid格式：市场代码.股票代码
+    沪市: 1.x (6开头)
+    深市: 0.x (0/3开头)
+    北交所: 0.x (8/4开头)
+    """
+    code = code.upper().replace("SH", "").replace("SZ", "").replace(".", "")
+    if code.startswith(("6",)):
+        return f"1.{code}"
+    elif code.startswith(("0", "3", "8", "4")):
+        return f"0.{code}"
+    else:
+        return f"1.{code}"
+
+
+def fetch_minute_data_em(code: str, count: int = 250) -> list[dict]:
+    """从东方财富获取分时K线数据（备用源）
+    
+    接口: push2his.eastmoney.com
+    返回格式: "时间,开,收,高,低,成交量,成交额,..."
+    
+    字段映射(f51-f61):
+    0:时间, 1:开盘, 2:收盘, 3:最高, 4:最低, 5:成交量(手), 6:成交额
+    """
+    secid = get_em_secid(code)
+    # 取今日数据
+    today = datetime.now().strftime("%Y%m%d")
+    url = (
+        f"https://push2his.eastmoney.com/api/qt/stock/kline/get"
+        f"?secid={secid}"
+        f"&fields1=f1,f2,f3,f4,f5,f6"
+        f"&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61"
+        f"&klt=1&fqt=1&beg={today}&end={today}"
+        f"&smplmt=460&lmt=1000000"
+    )
+    
+    try:
+        req = urllib.request.Request(url, headers={
+            "Referer": "https://finance.eastmoney.com/",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        })
+        resp = urllib.request.urlopen(req, timeout=10)
+        data = json.loads(resp.read().decode("utf-8"))
+        
+        klines = data.get("data", {}).get("klines", [])
+        result = []
+        for item in klines:
+            fields = item.split(",")
+            if len(fields) < 7:
+                continue
+            result.append({
+                "time": fields[0],       # "2026-03-26 09:31"
+                "open": float(fields[1]),
+                "close": float(fields[2]),
+                "high": float(fields[3]),
+                "low": float(fields[4]),
+                "volume": int(float(fields[5])) * 100,  # 东财是手，转为股
+                "amount": float(fields[6]),
+            })
+        return result
+        
+    except Exception as e:
+        print(f"东财分时接口错误: {e}", file=sys.stderr)
+    
+    return []
+
+
+def fetch_minute_data(source: str, symbol: str, code: str, count: int = 250) -> tuple[list[dict], str]:
+    """获取分时数据，主源失败则切换备用源
+    
+    Returns:
+        (data, source): 分时数据列表和数据来源标识
+    """
+    if source == "sina":
+        data = fetch_minute_data_sina(symbol, count)
+        if data:
+            return data, "新浪"
+        data = fetch_minute_data_em(code, count)
+        if data:
+            return data, "东方财富(备用)"
+        return [], "无数据"
+    else:
+        data = fetch_minute_data_em(code, count)
+        if data:
+            return data, "东方财富"
+        data = fetch_minute_data_sina(symbol, count)
+        if data:
+            return data, "新浪(备用)"
+        return [], "无数据"
+
+
 def analyze_minute_volume(minute_data: list[dict]) -> dict:
     """分析分时量能
     
@@ -188,11 +281,14 @@ def analyze_minute_volume(minute_data: list[dict]) -> dict:
     if not minute_data:
         return {"error": "无分时数据"}
     
-    import re
-    
     def extract_time(dt_str: str) -> str:
-        """从 '2026-03-26 10:29:00' 提取 '10:29'"""
+        """从时间字符串提取 HH:MM，兼容新浪(含秒)和东财(不含秒)格式"""
+        # 新浪: "2026-03-26 10:29:00" → 匹配 HH:MM:SS
         m = re.search(r'\d{4}-\d{2}-\d{2}\s+(\d{2}:\d{2}):\d{2}', dt_str)
+        if m:
+            return m.group(1)
+        # 东财: "2026-03-26 09:31" → 匹配 HH:MM
+        m = re.search(r'\d{4}-\d{2}-\d{2}\s+(\d{2}:\d{2})(?::\d{2})?$', dt_str)
         return m.group(1) if m else ""
     
     def time_in_range(dt_str: str, start: str, end: str) -> bool:
@@ -215,7 +311,7 @@ def analyze_minute_volume(minute_data: list[dict]) -> dict:
     def period_vol(start: str, end: str) -> int:
         return sum(
             d["volume"] for d in trading_data
-            if start <= d["time"][-8:-3] < end
+            if time_in_range(d["time"], start, end)
         )
     
     open_30 = period_vol("09:30", "10:00")
@@ -227,7 +323,7 @@ def analyze_minute_volume(minute_data: list[dict]) -> dict:
     sorted_by_vol = sorted(trading_data, key=lambda x: x["volume"], reverse=True)[:10]
     top_volumes = [
         {
-            "time": d["time"][-8:],
+            "time": extract_time(d["time"]),
             "price": d["close"],
             "volume": d["volume"] // 100,  # 转换为手
             "amount": d["amount"],
@@ -308,9 +404,10 @@ def format_minute_analysis(analysis: dict, name: str = "") -> str:
     if "error" in analysis:
         return f"分时分析错误: {analysis['error']}"
     
+    source = analysis.get("data_source", "新浪")
     lines = [
         f"",
-        f"【分时量能分析】{name}",
+        f"【分时量能分析】{name} [数据源:{source}]",
         f"  全天成交: {analysis['total_volume']}手 ({analysis['total_amount']/10000:.1f}万元)",
         f"",
         f"  成交分布:",
@@ -355,10 +452,11 @@ def analyze_stock(code: str, with_minute: bool = False, realtime_cache: dict = N
         "updated_at": datetime.now().isoformat(),
     }
     
-    # 分时分析
+    # 分时分析（主源:新浪，备用:东财）
     if with_minute:
-        minute_data = fetch_minute_data_sina(sina_symbol)
+        minute_data, minute_source = fetch_minute_data("sina", sina_symbol, code)
         minute_analysis = analyze_minute_volume(minute_data)
+        minute_analysis["data_source"] = minute_source
         result["minute_analysis"] = minute_analysis
     
     return result
