@@ -1134,9 +1134,10 @@ def fetch_stock_profile_em(code: str) -> dict:
             except Exception:
                 pass
         
-        # 连续3日净流出检测
+        # 连续3日净流出检测（跳过今天[0]，从昨日[1]开始算）
+        # 数据顺序：03-25(今天), 03-24, 03-23, 03-20, 03-19
         neg_days = 0
-        for f in flow_hist[:3]:
+        for f in flow_hist[1:4]:  # 取昨日~前第3日
             if f["main_net"] < 0:
                 neg_days += 1
         
@@ -1145,7 +1146,7 @@ def fetch_stock_profile_em(code: str) -> dict:
             "pe": d.get("f168", 0),                   # 动态市盈率
             "vol_ratio": d.get("f173", 0),            # 量比
             "flow_hist": flow_hist,                   # 近5日主力资金
-            "consecutive_outflow_3d": neg_days >= 3,  # 连续3日净流出
+            "consecutive_outflow_3d": neg_days >= 3,  # 连续3日净流出（排除今天）
         }
     except Exception as e:
         print(f"Stock profile获取失败: {e}", file=sys.stderr)
@@ -1218,7 +1219,9 @@ def calculate_position_limit(
     }.get(market_risk, 0.6)
     
     # 流通市值系数
-    if market_cap < 30:
+    if market_cap < 20:
+        return "❌ 禁止推荐（流通市值<20亿，流动性极差）"
+    elif market_cap < 30:
         cap_coef = 0.5
         cap_note = "<30亿，流动性风险高"
     elif market_cap < 50:
@@ -1228,22 +1231,20 @@ def calculate_position_limit(
         cap_coef = 1.0
         cap_note = ">50亿，正常"
     
-    # 禁止推荐检测
-    if market_cap < 20:
-        return "❌ 禁止推荐（流通市值<20亿）"
+    # 风险等级调整
     if risk_count >= 5:
         return "❌ 清仓回避（≥5个风险信号）"
-    
-    final = base * market_coef * cap_coef
-    
-    # 风险等级调整
-    if risk_count >= 3:
-        final = min(final, 5)  # 最多5%
+    elif risk_count >= 3:
+        final = min(base * market_coef * cap_coef, 5)
     elif risk_count >= 1:
-        final = min(final, base * cap_coef * 0.5)
+        final = min(base * cap_coef * 0.5, base * market_coef * cap_coef)
+    else:
+        final = base * market_coef * cap_coef
     
-    final = max(final, 0)
-    return f"建议仓位: ≤{final:.0f}%  ({cap_note})"
+    final = max(round(final), 0)
+    if final == 0:
+        return f"建议仓位: 0%（风险偏高，暂无空间）"
+    return f"建议仓位: ≤{final}%  ({cap_note})"
 
 
 def build_conclusion(result: dict, market_pct: float, profile: dict = None) -> str:
@@ -1326,11 +1327,8 @@ def build_conclusion(result: dict, market_pct: float, profile: dict = None) -> s
             lines.append(f"    {icon} {rtype}：{desc}")
     
     # ── 4. 综合结论 ──
-    positive = sum(1 for _, _, _ in [(v[0],v[1],v[2]) for v in verdicts if v[0] in ("🟢", "✅")] for _ in [None])
-    # 重新统计
     pos_count = sum(1 for v in verdicts if v[0] == "🟢")
     neg_count = sum(1 for v in verdicts if v[0] == "🔴")
-    # 加上风险数
     neg_count += risk_count
     
     if pos_count >= 3 and neg_count == 0:
@@ -1386,7 +1384,7 @@ def build_conclusion(result: dict, market_pct: float, profile: dict = None) -> s
         for f in flow_hist[:5]:
             arrow = "▲" if f["main_net"] > 0 else "▼"
             color = "🟢" if f["main_net"] > 0 else "🔴"
-            lines.append(f"    {color} {f['date'][-5:]}  {arrow}{abs(f['main_net'])/1e8:+.2f}亿")
+            lines.append(f"    {color} {f['date'][-5:]}  {arrow}{f['main_net']/1e8:.2f}亿")
     
     # ── 8. 关键价位操作参考 ──
     if sr:
