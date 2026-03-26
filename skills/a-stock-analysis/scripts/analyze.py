@@ -227,7 +227,14 @@ def fetch_level2_flow(code: str) -> dict:
 
 
 def get_level2_signal(flow: dict, market_pct: float = 0) -> list[str]:
-    """根据Level2资金流返回操作信号"""
+    """根据Level2资金流返回多空博弈信号
+    
+    四档资金定义:
+    - 超大单: 金额>100万的主动买入/卖出
+    - 大单: 金额20-100万的主动买入/卖出
+    - 中单: 金额5-20万
+    - 小单: 金额<5万
+    """
     signals = []
     if not flow["minute_data"]:
         return signals
@@ -235,22 +242,80 @@ def get_level2_signal(flow: dict, market_pct: float = 0) -> list[str]:
     total = flow["total_main"]
     super_large = flow["total_super"]
     big = flow["total_big"]
+    mid = flow["total_mid"]
+    small = flow["total_small"]
     
-    if total > 1e8:  # 净流入>1亿
-        signals.append(f"✅ 主力净流入: {total/1e8:+.1f}亿（{'真金白银抢筹' if super_large+big > 0 else '多为中小单'})")
-    elif total < -1e8:  # 净流出>1亿
-        signals.append(f"⚠️ 主力净流出: {total/1e8:+.1f}亿（{'主力在出货' if super_large+big < 0 else '多为中小单出逃'}）")
+    # ── 第一层：主力总流向（EastMoney计算口径，可能含"其他"档位）──
+    institution_net = super_large + big
+    retail_net = total - institution_net  # 散户 = 主力 - 机构
     
-    # 尾盘15分钟资金判断
+    if total > 1e8:
+        sig = f"✅ 主力净流入: {total/1e8:+.2f}亿"
+        if institution_net > 0:
+            sig += "（机构/超大单主导，真金白银）"
+        else:
+            sig += "（含隐性买盘（庄家/配资/量化），非散户主导）"
+        signals.append(sig)
+    elif total < -1e8:
+        sig = f"⚠️ 主力净流出: {total/1e8:+.2f}亿"
+        if institution_net < 0:
+            sig += "（机构/超大单主导，主力出货）"
+        else:
+            sig += "（含隐性卖盘，非散户恐慌）"
+        signals.append(sig)
+    
+    # ── 第二层：多空博弈（四档资金分析）──
+    if institution_net > 5e7 and retail_net < -1e7:
+        signals.append("🥊 多空博弈: 机构净买入 + 散户净卖出 → 机构吃筹，筹码从散户流向机构")
+    elif institution_net < -5e7 and retail_net > 1e7:
+        signals.append("🥊 多空博弈: 机构净卖出 + 散户净买入 → 机构派发，筹码从机构流向散户")
+    elif abs(institution_net) < 2e7 and abs(retail_net) < 2e7:
+        signals.append("🥊 多空博弈: 多空均衡，双方都在观望")
+    
+    # 超大单单独分析（机构中的机构，最强信号）
+    if super_large > 3e7:
+        signals.append(f"  └ 超大单: {super_large/1e8:+.2f}亿（大资金动向）")
+    elif super_large < -3e7:
+        signals.append(f"  └ 超大单: {super_large/1e8:+.2f}亿（大资金撤退）")
+    
+    # ── 第三层：尾盘15分钟资金博弈 ──
     mins = flow["minute_data"]
     if len(mins) >= 15:
         last_15 = sum(m for _, m in mins[-15:])
-        if last_15 > 3e7:  # 尾盘15分钟净流入>3000万
-            signals.append(f"🔥 尾盘15分钟主力加速净流入: {last_15/1e6:+.0f}万")
+        if last_15 > 3e7:
+            signals.append(f"🔥 尾盘15分钟主力净流入: {last_15/1e6:+.0f}万（尾盘做多）")
         elif last_15 < -3e7:
-            signals.append(f"🔻 尾盘15分钟主力净流出: {last_15/1e6:+.0f}万")
+            signals.append(f"🔻 尾盘15分钟主力净流出: {last_15/1e6:+.0f}万（尾盘减仓）")
     
     return signals
+
+
+def format_level2(flow: dict, signals: list[str]) -> str:
+    """格式化Level2资金流完整输出"""
+    if not flow["minute_data"]:
+        return "\n【Level2主力资金】数据获取失败"
+    
+    lines = ["", "【Level2主力资金流向】"]
+    
+    total_main = flow["total_main"]
+    total_super = flow["total_super"]
+    total_big = flow["total_big"]
+    total_mid = flow["total_mid"]
+    total_small = flow["total_small"]
+    
+    # :+.2f 已包含符号，避免重复
+    lines.append(f"  主力净流入: {total_main/1e8:+.2f}亿")
+    lines.append(f"    超大单: {total_super/1e8:+.2f}亿")
+    lines.append(f"    大单:   {total_big/1e8:+.2f}亿")
+    lines.append(f"    中单:   {total_mid/1e8:+.2f}亿")
+    lines.append(f"    小单:   {total_small/1e8:+.2f}亿")
+    
+    if signals:
+        lines.append("")
+        for sig in signals:
+            lines.append(f"  {sig}")
+    
+    return "\n".join(lines)
 
 
 def get_board_limits(code: str) -> tuple[float, float]:
@@ -1135,9 +1200,6 @@ def main():
                               with_lifecycle=args.lifecycle,
                               realtime_cache=realtime_cache, market_change_pct=sh_pct)
         results.append(result)
-        result = analyze_stock(code, with_minute=args.minute, with_tech=fetch_tech,
-                              realtime_cache=realtime_cache, market_change_pct=sh_pct)
-        results.append(result)
     
     if args.json:
         output = {"market": {"indices": indices, "mood": mood, "signal": signal}, "stocks": results}
@@ -1198,15 +1260,7 @@ def main():
             # Level2 主力资金流
             if args.level2 and "level2" in result:
                 l2 = result["level2"]
-                flow = l2["data"]
-                if flow["minute_data"]:
-                    total_main = flow["total_main"]
-                    arrow = "+" if total_main >= 0 else ""
-                    print(f"\n【Level2主力资金】全天主力净流入: {arrow}{total_main/1e8:.2f}亿")
-                    for sig in l2["signals"]:
-                        print(f"  {sig}")
-                else:
-                    print("\n【Level2主力资金】数据获取失败")
+                print(format_level2(l2["data"], l2["signals"]))
             
             # 支撑/压力位
             if args.sr and "support_resistance" in result:
