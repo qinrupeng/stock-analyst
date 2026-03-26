@@ -23,7 +23,7 @@ from pathlib import Path
 
 # 导入同目录的 analyze 模块
 sys.path.insert(0, os.path.dirname(__file__))
-from analyze import analyze_stock, format_realtime, format_minute_analysis
+from analyze import analyze_stock, format_realtime, format_minute_analysis, format_technicals
 
 
 PORTFOLIO_FILE = Path.home() / ".clawdbot" / "skills" / "a-stock-analysis" / "portfolio.json"
@@ -152,7 +152,7 @@ def analyze_portfolio():
     
     for pos in positions:
         code = pos["code"]
-        result = analyze_stock(code, with_minute=True)
+        result = analyze_stock(code, with_minute=True, with_tech=True)
         
         if "error" in result:
             print(f"\n{code}: {result['error']}")
@@ -182,6 +182,9 @@ def analyze_portfolio():
         
         if "minute_analysis" in result:
             print(format_minute_analysis(result["minute_analysis"], result["name"]))
+        
+        if "technicals" in result:
+            print(format_technicals(result["technicals"]))
         
         print()
         results.append({

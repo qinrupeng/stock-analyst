@@ -21,7 +21,7 @@ import json
 import re
 import sys
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 
@@ -380,6 +380,121 @@ def analyze_minute_volume(minute_data: list[dict]) -> dict:
     }
 
 
+def fetch_daily_data_em(code: str, days: int = 60) -> list[dict]:
+    """从东方财富获取日K线数据（用于技术指标计算）
+    
+    返回格式: [{date, open, close, high, low, volume, amount}, ...]
+    """
+    secid = get_em_secid(code)
+    end = datetime.now().strftime("%Y%m%d")
+    beg = (datetime.now().replace(day=1) - timedelta(days=days*2)).strftime("%Y%m%d")
+    url = (
+        f"https://push2his.eastmoney.com/api/qt/stock/kline/get"
+        f"?secid={secid}"
+        f"&fields1=f1,f2,f3,f4,f5,f6"
+        f"&fields2=f51,f52,f53,f54,f55,f56,f57"
+        f"&klt=101&fqt=1&beg={beg}&end={end}&lmt={days}"
+    )
+    try:
+        req = urllib.request.Request(url, headers={
+            "Referer": "https://finance.eastmoney.com/",
+            "User-Agent": "Mozilla/5.0",
+        })
+        resp = urllib.request.urlopen(req, timeout=10)
+        data = json.loads(resp.read().decode("utf-8"))
+        klines = data.get("data", {}).get("klines", [])
+        result = []
+        for item in klines:
+            fields = item.split(",")
+            if len(fields) < 6:
+                continue
+            result.append({
+                "date": fields[0],
+                "open": float(fields[1]),
+                "close": float(fields[2]),
+                "high": float(fields[3]),
+                "low": float(fields[4]),
+                "volume": int(float(fields[5])),
+                "amount": float(fields[6]) if len(fields) > 6 else 0,
+            })
+        return result
+    except Exception as e:
+        print(f"东财日K接口错误: {e}", file=sys.stderr)
+    return []
+
+
+def calculate_rsi(closes: list[float], period: int = 14) -> float | None:
+    """计算RSI相对强弱指标"""
+    if len(closes) < period + 1:
+        return None
+    gains = []
+    losses = []
+    for i in range(1, len(closes)):
+        delta = closes[i] - closes[i - 1]
+        gains.append(max(delta, 0))
+        losses.append(max(-delta, 0))
+    if len(gains) < period:
+        return None
+    avg_gain = sum(gains[-period:]) / period
+    avg_loss = sum(losses[-period:]) / period
+    if avg_loss == 0:
+        return 100.0
+    rs = avg_gain / avg_loss
+    return round(100 - (100 / (1 + rs)), 2)
+
+
+def calculate_macd(closes: list[float], fast: int = 12, slow: int = 26, signal: int = 9) -> dict | None:
+    """计算MACD指标，返回 {macd, signal, histogram}"""
+    if len(closes) < slow + signal:
+        return None
+    
+    def ema(data: list[float], period: int) -> list[float]:
+        k = 2 / (period + 1)
+        result = [data[0]]
+        for i in range(1, len(data)):
+            result.append(data[i] * k + result[-1] * (1 - k))
+        return result
+    
+    ema_fast = ema(closes, fast)
+    ema_slow = ema(closes, slow)
+    macd_line = [ema_fast[i] - ema_slow[i] for i in range(len(closes))]
+    macd_ema = ema(macd_line[-slow:], signal)
+    # signal线对齐macd线
+    signal_line = [macd_ema[0]] * (len(macd_line) - signal) + macd_ema
+    
+    n = len(macd_line)
+    macd_val = round(macd_line[-1], 4)
+    signal_val = round(signal_line[-1], 4)
+    hist = round(macd_line[-1] - signal_line[-1], 4)
+    return {
+        "macd": macd_val,
+        "signal": signal_val,
+        "histogram": hist,
+        "histogram_pct": round(hist / closes[-1] * 100, 3) if closes[-1] else 0,
+    }
+
+
+def format_technicals(tech: dict) -> str:
+    """格式化技术指标输出"""
+    lines = ["", "【技术指标】"]
+    rsi = tech.get("rsi14")
+    if rsi is not None:
+        rsi_level = "超买" if rsi > 70 else "超卖" if rsi < 30 else "正常"
+        lines.append(f"  RSI(14): {rsi}  ({rsi_level})")
+    macd = tech.get("macd")
+    if macd:
+        hist = macd.get("histogram", 0)
+        hist_str = f"{hist:+.4f}"
+        if hist > 0:
+            hist_label = "MACD金叉（多头）"
+        elif hist < 0:
+            hist_label = "MACD死叉（空头）"
+        else:
+            hist_label = "MACD零点"
+        lines.append(f"  MACD(12,26,9): MACD={macd.get('macd'):.4f}  Signal={macd.get('signal'):.4f}  Hist={hist_str}  ({hist_label})")
+    return "\n".join(lines)
+
+
 def format_realtime(data: dict) -> str:
     """格式化实时行情输出"""
     change_symbol = "+" if data["change_pct"] >= 0 else ""
@@ -431,7 +546,7 @@ def format_minute_analysis(analysis: dict, name: str = "") -> str:
     return "\n".join(lines)
 
 
-def analyze_stock(code: str, with_minute: bool = False, realtime_cache: dict = None) -> dict:
+def analyze_stock(code: str, with_minute: bool = False, with_tech: bool = False, realtime_cache: dict = None) -> dict:
     """分析单只股票"""
     sina_symbol = get_sina_symbol(code)
     
@@ -459,6 +574,17 @@ def analyze_stock(code: str, with_minute: bool = False, realtime_cache: dict = N
         minute_analysis["data_source"] = minute_source
         result["minute_analysis"] = minute_analysis
     
+    # 技术指标（RSI + MACD）
+    if with_tech:
+        tech = {}
+        daily = fetch_daily_data_em(code, days=60)
+        if daily:
+            closes = [d["close"] for d in daily]
+            rsi14 = calculate_rsi(closes, 14)
+            macd = calculate_macd(closes)
+            tech = {"rsi14": rsi14, "macd": macd}
+        result["technicals"] = tech
+    
     return result
 
 
@@ -466,6 +592,7 @@ def main():
     parser = argparse.ArgumentParser(description="A股实时行情与分时量能分析")
     parser.add_argument("codes", nargs="+", help="股票代码，如 600789 002446")
     parser.add_argument("--minute", "-m", action="store_true", help="包含分时量能分析")
+    parser.add_argument("--tech", "-t", action="store_true", help="包含技术指标(RSI/MACD)")
     parser.add_argument("--json", "-j", action="store_true", help="JSON格式输出")
     
     args = parser.parse_args()
@@ -476,7 +603,7 @@ def main():
     
     results = []
     for code in args.codes:
-        result = analyze_stock(code, with_minute=args.minute, realtime_cache=realtime_cache)
+        result = analyze_stock(code, with_minute=args.minute, with_tech=args.tech, realtime_cache=realtime_cache)
         results.append(result)
     
     if args.json:
@@ -491,6 +618,9 @@ def main():
             
             if args.minute and "minute_analysis" in result:
                 print(format_minute_analysis(result["minute_analysis"], result["name"]))
+            
+            if args.tech and "technicals" in result:
+                print(format_technicals(result["technicals"]))
             
             print()
 

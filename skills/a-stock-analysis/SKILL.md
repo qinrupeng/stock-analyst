@@ -5,7 +5,7 @@ description: A股实时行情与分时量能分析。获取沪深股票实时价
 
 # A股实时行情与分时量能分析
 
-使用新浪财经（主）+ 东方财富（备用）接口获取A股数据，支持实时行情、分时K线、量能分析、涨停/跌停检测。
+使用新浪财经（主）+ 东方财富（备用）接口获取A股数据，支持实时行情、分时K线、量能分析、涨停/跌停检测、RSI/MACD技术指标。
 
 ## 快速开始
 
@@ -20,6 +20,12 @@ uv run {baseDir}/scripts/analyze.py 600789 002446 002342
 
 # 含分时量能分析
 uv run {baseDir}/scripts/analyze.py 600789 --minute
+
+# 含技术指标(RSI/MACD)
+uv run {baseDir}/scripts/analyze.py 600789 --tech
+
+# 同时含分时+技术指标
+uv run {baseDir}/scripts/analyze.py 600789 --minute --tech
 
 # JSON输出
 uv run {baseDir}/scripts/analyze.py 600789 --json
@@ -77,6 +83,13 @@ uv run {baseDir}/scripts/portfolio.py analyze
 - 主力建仓/出货时机
 - 重大消息发布时点
 - 涨停封板/开板时刻
+
+## 技术指标说明
+
+| 指标 | 周期 | 含义 |
+|------|------|------|
+| RSI(14) | 14日 | >70超买，<30超卖 |
+| MACD(12,26,9) | 日K | Hist>0金叉（多头），Hist<0死叉（空头）|
 
 ## 数据源
 
