@@ -1190,6 +1190,97 @@ def get_risk_signals(profile: dict, change_pct: float, tech: dict) -> list[tuple
     return risks
 
 
+def build_contradiction(result: dict, market_pct: float, profile: dict) -> str | None:
+    """识别核心矛盾，给出不确定性承认和最小行动指引
+    
+    Returns: 矛盾描述字符串，或None（无明显矛盾）
+    
+    矛盾类型：
+    C1: 机构逆势买入 → 不确定是"左侧布局"还是"量化护盘"
+    C2: 机构派发+大盘强势 → 不确定是"真出货"还是"调仓换股"
+    C3: 高PE+机构净买入 → 矛盾信号，机构在赌什么？
+    C4: 连续流出+今日反转 → 可能是企稳信号，但不确定
+    C5: RSI死叉+股价不跌 → 主力控盘或护盘
+    """
+    level2 = result.get("level2", {}).get("data", {})
+    if not level2.get("minute_data"):
+        return None
+    
+    total_main = level2.get("total_main", 0)
+    super_large = level2.get("total_super", 0)
+    big = level2.get("total_big", 0)
+    institution_net = super_large + big
+    realtime = result.get("realtime", {})
+    change_pct = realtime.get("change_pct", 0)
+    tech = result.get("technicals", {})
+    rsi = tech.get("rsi14") if isinstance(tech, dict) else None
+    flow_hist = (profile or {}).get("flow_hist", [])
+    pe = (profile or {}).get("pe", 0)
+    
+    contradictions = []  # [(label, reason, lean, guidance)]
+    
+    # C1: 机构逆势买入
+    if institution_net > 0 and market_pct < -0.3:
+        contradictions.append((
+            "机构逆势买入",
+            f"超大+大单净流入{institution_net/1e8:+.1f}亿，但大盘下跌{market_pct:.2f}%",
+            "可能是左侧布局，也可能是量化护盘或ETF申赎被动买入",
+            "不追高，等大盘企稳再确认"
+        ))
+    
+    # C2: 机构派发+股价却没大跌
+    if institution_net < 0 and change_pct > -1.0 and change_pct < 2.0:
+        contradictions.append((
+            "机构在派发但股价撑住了",
+            f"超大+大单净流出{institution_net/1e8:+.1f}亿，但仅下跌{change_pct:.2f}%",
+            "可能是主力对倒维持股价，或有其他资金承接",
+            "警惕庄股嫌疑，观察是否缩量"
+        ))
+    
+    # C3: 高PE+机构净买入
+    if pe >= 100 and institution_net > 0:
+        contradictions.append((
+            "高PE+机构买入",
+            f"PE={pe:.0f}偏高，机构仍在净买入{institution_net/1e8:+.1f}亿",
+            "机构可能在赌赛道或预期差，需结合消息面判断",
+            "仓位从紧，严格止损"
+        ))
+    
+    # C4: 连续流出后今日反转
+    if flow_hist and len(flow_hist) >= 2:
+        prev = flow_hist[1].get("main_net", 0)  # 昨日
+        today = flow_hist[0].get("main_net", 0)  # 今日
+        prev2 = flow_hist[2].get("main_net", 0) if len(flow_hist) > 2 else 0
+        if prev < 0 and prev2 < 0 and today > 0:
+            contradictions.append((
+                "连续流出后今日反转",
+                f"近2日净流出后，今日主力净流入{today/1e8:+.1f}亿",
+                "可能是止跌信号，但1天反转可信度有限",
+                "等待连续2天以上净流入再确认"
+            ))
+    
+    # C5: RSI死叉但股价横盘
+    if rsi and rsi < 50 and change_pct > -1.5 and change_pct < 1.5 and institution_net > 0:
+        contradictions.append((
+            "RSI死叉+股价不跌",
+            f"RSI={rsi}低于50，MACD死叉，但股价仅{change_pct:+.2f}%",
+            "主力控盘或护盘，不跌不一定是底部信号",
+            "等待RSI回升至50以上再考虑介入"
+        ))
+    
+    if not contradictions:
+        return None
+    
+    lines = ["", "  ⚡ 核心矛盾"]
+    for i, (label, signal, uncertain, guidance) in enumerate(contradictions):
+        lines.append(f"  {i+1}. {label}")
+        lines.append(f"     信号: {signal}")
+        lines.append(f"     ? {uncertain}")
+        lines.append(f"     → {guidance}")
+    
+    return "\n".join(lines)
+
+
 def calculate_position_limit(
     market_risk: str,        # "low"/"medium"/"high"/"extreme"
     market_cap: float,         # 流通市值（亿元）
@@ -1345,6 +1436,11 @@ def build_conclusion(result: dict, market_pct: float, profile: dict = None) -> s
     
     for icon, tag, desc in verdicts:
         lines.append(f"  {icon} {tag}：{desc}")
+    
+    # 核心矛盾识别
+    contradiction = build_contradiction(result, market_pct, profile)
+    if contradiction:
+        lines.append(contradiction)
     
     # 结论框
     lines.append("")
