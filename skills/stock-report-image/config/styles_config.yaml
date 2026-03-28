@@ -1,254 +1,297 @@
-# 风格→参考图映射
+# ============================================================
+# stock-report-image 技能 - 唯一配置源
+# 所有赛道→风格、赛道→图标、布局、标题规则全部在这里
+# 代码只读配置，不写硬编码
+# ============================================================
+
+# 风格→参考图映射（全部63个参考图已覆盖）
 style_ref_map:
-  blueprint_lab: "blueprint.webp"
-  retro_pop_grid: "retro.webp"
-  acid_block: "cyberpunk-neon.webp"
-  thermal: "chalkboard.webp"
-  vintage_journal: "vintage.webp"
-  folder: "folder-reference.webp"
-  archive: "editorial.webp"
-  ticket: "playful.webp"
-  # Baoyu预设兼容
-  blueprint: "blueprint.webp"
-  retro: "retro.webp"
-  chalkboard: "chalkboard.webp"
-  vintage: "vintage.webp"
-  minimal: "flat.webp"
+  # ---------- 科技/工程（blueprint_lab）----------
+  blueprint_lab: "blueprint.webp"           # 科技蓝图蓝白亮色
+  tech_schematic: "technical-schematic.webp"  # 技术图解风格
 
-# 主题关键词→风格映射
-# 新增主题直接在这里加，不用改代码
-# 主题关键词→风格映射（风格分布：folder/blueprint_lab/retro_pop_grid/vintage_journal/archive）
+  # ---------- 复古/波普（retro_pop_grid）----------
+  retro_pop_grid: "retro.webp"               # 复古波普网格
+
+  # ---------- 赛博朋克/霓虹（acid_block）----------
+  acid_block: "cyberpunk-neon.webp"          # 赛博朋克霓虹深色
+
+  # ---------- 手绘/黑板（thermal）----------
+  thermal: "chalkboard.webp"                # 手绘黑板风
+
+  # ---------- 复古期刊/杂志（vintage_journal）----------
+  vintage_journal: "vintage.webp"             # 复古期刊暖色
+
+  # ---------- 写字板/文件夹（folder）----------
+  folder: "folder-reference.webp"           # 拟物化文件夹
+
+  # ---------- 档案/编辑（archive）----------
+  archive: "editorial.webp"                  # 档案编辑黑白
+
+  # ---------- 票据/活泼（ticket）----------
+  ticket: "playful.webp"                     # 票据活泼风
+
+  # ---------- 插画类（article-illustrator-styles）----------
+  vector_illustration: "vector-illustration.webp"  # 矢量插画
+  elegant_illustration: "elegant.webp"          # 优雅插画
+  fantasy_animation: "fantasy-animation.webp"   # 幻想动画
+  intuition_machine: "intuition-machine.webp"   # 直觉机器
+  nature_illustration: "nature.webp"            # 自然插画
+  pixel_art_style: "pixel-art.webp"           # 像素艺术
+  sketch_notes: "sketch-notes.webp"            # 手绘笔记
+  warm_style: "warm.webp"                     # 温馨暖色
+  watercolor_style: "watercolor.webp"           # 水彩插画
+  dark_atmospheric: "dark-atmospheric.webp"     # 深色氛围
+
+  # ---------- 信息图表类（infographic-styles）----------
+  aged_academia: "aged-academia.webp"           # 古朴学院风
+  bold_graphic: "bold-graphic.webp"             # 大胆图形
+  bridge_architecture: "bridge.webp"             # 桥梁架构风
+  circular_flow: "circular-flow.webp"            # 环形流程图
+  cladaymation: "claymation.webp"               # 黏土动画风
+  comparison_table: "comparison-table.webp"      # 对比表格图
+  corporate_memphis: "corporate-memphis.webp"   # 孟菲斯企业风
+  craft_handmade: "craft-handmade.webp"         # 手工工艺风
+  do_dont: "do-dont.webp"                       # 对比图（做与不做）
+  equation_style: "equation.webp"                # 公式风格
+  feature_list: "feature-list.webp"             # 特色清单图
+  fishbone: "fishbone.webp"                    # 鱼骨图
+  funnel_style: "funnel.webp"                   # 漏斗图
+  grid_cards: "grid-cards.webp"                 # 网格卡片
+  iceberg: "iceberg.webp"                       # 冰山图
+  ikea_manual: "ikea-manual.webp"               # IKEA说明书风
+  journey_path: "journey-path.webp"             # 旅程路径图
+  kawaii_style: "kawaii.webp"                   # 可爱卡哇伊风
+  knolling_flat: "knolling.webp"               # 平铺Knolling风
+  layers_stack: "layers-stack.webp"              # 层级堆叠图
+  lego_brick: "lego-brick.webp"                 # 乐高积木风
+  mind_map: "mind-map.webp"                    # 思维导图
+  nested_circles: "nested-circles.webp"        # 嵌套圆环图
+  origami_style: "origami.webp"                 # 折纸艺术风
+  priority_quadrants: "priority-quadrants.webp" # 优先级四象限
+  pyramid_style: "pyramid.webp"                 # 金字塔图
+  scale_balance: "scale-balance.webp"          # 天平平衡图
+  storybook_watercolor: "storybook-watercolor.webp"  # 故事书水彩
+  subway_map: "subway-map.webp"                 # 地铁线路图
+  timeline_horizontal: "timeline-horizontal.webp"  # 时间轴横版
+  tree_hierarchy: "tree-hierarchy.webp"         # 树状层级图
+  ui_wireframe: "ui-wireframe.webp"              # UI线框图
+  venn_diagram: "venn.webp"                    # 文氏图
+  sketch_style: "sketch.webp"                   # 素描风格
+  scientific_graph: "scientific.webp"             # 科学图表
+
+  # ---------- 小红书风格（xhs-images-styles）----------
+  xhs_pop: "pop.webp"                         # pop活泼风（默认推荐）
+  xhs_balanced: "balanced.webp"               # 平衡简约风
+  xhs_bold: "bold.webp"                       # 大胆撞色风
+  xhs_chalkboard: "chalkboard.webp"            # 黑板手绘风
+  xhs_comparison: "comparison.webp"             # 对比图风
+  xhs_cute: "cute.webp"                       # 可爱甜美风
+  xhs_dense: "dense.webp"                     # 信息密集风
+  xhs_flow: "flow.webp"                       # 流程图风
+  xhs_fresh: "fresh.webp"                     # 小清新风
+  xhs_list: "list.webp"                       # 列表清单风
+  xhs_minimal: "minimal.webp"                 # 极简风
+  xhs_notion: "notion.webp"                   # Notion冷淡风
+  xhs_retro: "retro.webp"                     # 复古小红书风
+  xhs_sparse: "sparse.webp"                   # 留白呼吸风
+  xhs_warm: "warm.webp"                       # 暖色调风
+ 
+# ============================================================
+# 【核心】赛道→风格映射（标准化命名，无重复）
+# 修改赛道风格在这里改，不要动代码
+# ============================================================
 theme_styles:
-  # ========== folder ⭐ 大爷最爱 ==========
-  # 新能源/电力/投资机会 → folder（现代专业金融感）
-  储能锂电: "folder"
-  新能源: "folder"
-  锂电: "folder"
-  电池: "folder"
-  光伏: "folder"
-  电力: "folder"
-  电网: "folder"
-  特高压: "folder"
-  变压器: "folder"
-  投资机会: "folder"
-  投资: "folder"
-  策略: "folder"
-  市场分析: "folder"
-  机会: "folder"
-  赛道机会: "folder"
-  热点前瞻: "folder"
 
-  # ========== blueprint_lab 硬科技 ==========
-  # 算力/芯片/AI
+  # ---------- 硬科技（blueprint_lab）----------
+  # 算力/芯片/AI/半导体
   算力: "blueprint_lab"
   芯片: "blueprint_lab"
   AI: "blueprint_lab"
   人工智能: "blueprint_lab"
   半导体: "blueprint_lab"
-  # 商业/新兴
-  航天: "blueprint_lab"
-  卫星: "blueprint_lab"
-  火箭: "blueprint_lab"
-  低空: "blueprint_lab"
-  低空经济: "blueprint_lab"
-  商业航天: "blueprint_lab"
-  # 前沿科技
-  脑机接口: "blueprint_lab"
   光模块: "blueprint_lab"
   存储芯片: "blueprint_lab"
   PCB: "blueprint_lab"
   消费电子: "blueprint_lab"
+  # 商业/新兴
+  航天: "blueprint_lab"
+  卫星: "blueprint_lab"
+  火箭: "blueprint_lab"
+  商业航天: "blueprint_lab"
+  低空: "blueprint_lab"
+  低空经济: "blueprint_lab"
+  # 前沿科技
+  脑机接口: "blueprint_lab"
   可控核聚变: "blueprint_lab"
 
-  # ========== retro_pop_grid 资源金属 ==========
-  钨: "retro_pop_grid"
-  稀土: "retro_pop_grid"
-  小金属: "retro_pop_grid"
+  # ---------- 新能源/电力（folder）----------
+  储能: "folder"
+  储能锂电: "folder"
+  锂电: "folder"
+  电池: "folder"
+  新能源: "folder"
+  光伏: "folder"
+  电力: "folder"
+  电力电网: "folder"
+  电网: "folder"
+  特高压: "folder"
+
+  # ---------- 资源金属（retro_pop_grid）----------
   黄金: "retro_pop_grid"
   白银: "retro_pop_grid"
   铜: "retro_pop_grid"
+  稀土: "retro_pop_grid"
+  小金属: "retro_pop_grid"
+  战略金属: "retro_pop_grid"
+  有色金属: "retro_pop_grid"
+  钨: "retro_pop_grid"
   锂: "retro_pop_grid"
   镍: "retro_pop_grid"
   金属: "retro_pop_grid"
-  战略金属: "retro_pop_grid"
-  有色金属: "retro_pop_grid"
 
-  # ========== vintage_journal 医药/化工 ==========
+  # ---------- 医药化工（vintage_journal）----------
+  医药: "vintage_journal"
+  医疗: "vintage_journal"
+  创新药: "vintage_journal"
+  CXO: "vintage_journal"
   磷化工: "vintage_journal"
   化肥: "vintage_journal"
   化工: "vintage_journal"
-  医药: "vintage_journal"
-  医疗: "vintage_journal"
-  CXO: "vintage_journal"
-  创新药: "vintage_journal"
   军工: "vintage_journal"
 
-  # ========== archive 金融 ==========
+  # ---------- 金融（archive）----------
   金融: "archive"
   银行: "archive"
 
+  # ---------- 机器人（blueprint_lab）----------
+  机器人: "blueprint_lab"
+  具身智能: "blueprint_lab"
+
+  # ---------- 投资机会（folder）----------
+  投资机会: "folder"
+  赛道机会: "folder"
+  热点前瞻: "folder"
+  投资: "folder"
+  策略: "folder"
+  市场分析: "folder"
+  机会: "folder"
+
 # ============================================================
-# 【新增】文件夹风格详细描述（大爷验证）
-# 风格名：folder / folder-reference.webp
-# 参考图：folder-reference.webp（AI直接学习参考图的风格）
-# 视觉：拟物化写字板 + 3D微缩场景 + 模块化文件夹卡片
-# 配色：克莱因蓝(#0046D5) + 活力橙(#FF6B35)
-# 质感：木质夹板 + 米黄纸张 + 银色金属夹
-# 适用：A股投资机会、市场分析、赛道机会类封面
+# 【核心】赛道→精确图标描述（大爷验证最优格式）
+# 格式：赛道名: "精确图标描述"
+# 图标描述要具体，AI照着生成不要发挥
+# ============================================================
+stock_topic_slot_icons:
+  # AI/算力/芯片
+  AI数字经济: "电路板+芯片图标"
+  算力: "GPU芯片+服务器图标"
+  芯片: "方形芯片+针脚图标"
+  光模块: "光纤接口+光模块图标"
+  存储芯片: "存储芯片+数据流图标"
+  PCB: "印制电路板+焊接点图标"
+  消费电子: "折叠屏手机+AI芯片图标"
+  # 芯片变体（TOPIC_VARIANT_MAP迁移至此）
+  CPO芯片光互联: "方形芯片+针脚图标"
+  CPO: "方形芯片+针脚图标"
+  光互联: "光纤接口+光模块图标"
+
+  # 前沿科技
+  脑机接口: "大脑+电波信号+神经节点图标"
+  可控核聚变: "等离子体环+能量球图标"
+  核聚变: "等离子体环+能量球图标"
+  核聚变核电: "等离子体环+能量球图标"
+  核电: "等离子体环+能量球图标"
+  机器人: "人形机器人+机械臂图标"
+  具身智能: "人形机器人+机械臂图标"
+  人形机器人具身智能: "人形机器人+机械臂图标"
+  机器人: "人形机器人+机械臂图标"
+
+  # 商业/新兴
+  商业航天: "商业火箭+卫星星座图标"
+  SpaceX冲刺IPO: "商业火箭+卫星星座图标"
+  SpaceX: "商业火箭+卫星星座图标"
+  IPO: "商业火箭+卫星星座图标"
+  航天: "商业火箭+卫星图标"
+  卫星: "卫星+轨道图标"
+  火箭: "火箭+火焰图标"
+  低空经济: "无人机+垂直起降图标"
+
+  # 新能源/电力
+  储能: "太阳能板+电池图标"
+  储能锂电: "太阳能板+电池图标"
+  锂电: "锂电池+储能图标"
+  电池: "电池+储能图标"
+  新能源: "太阳能板+风车图标"
+  光伏: "光伏板+阳光图标"
+  电力: "电塔+变压器+电网图标"
+  电力电网: "电塔+电网图标"
+  绿电算电协同: "电塔+变压器+电网图标"
+  绿电: "电塔+变压器+电网图标"
+  算电协同: "电塔+变压器+电网图标"
+  电网: "电塔+电网图标"
+  特高压: "特高压电塔+输电线路图标"
+
+  # 资源金属
+  有色金属: "金矿+金属晶体图标"
+  黄金: "金块+金币图标"
+  白银: "银块+银币图标"
+  铜: "铜块+电缆图标"
+  稀土: "稀土矿石+发光晶体图标"
+  小金属: "铜矿+锌矿+金属矿石图标"
+  战略金属: "金黄色金属矿石+钨矿图标"
+  钨: "钨矿+金属晶体图标"
+  锂: "锂矿+锂电池图标"
+  镍: "镍矿+金属图标"
+  金属: "多种金属矿石图标"
+
+  # 医药化工
+  医药: "药瓶+分子结构图标"
+  医疗: "药瓶+十字图标"
+  创新药: "DNA双螺旋+药物分子图标"
+  CXO: "实验室瓶+合同文件图标"
+  磷化工: "化工塔+磷矿石图标"
+  化肥: "化肥袋+麦穗图标"
+  化工: "化工反应釜+管道图标"
+  军工: "战斗机+盾牌图标"
+
+  # 金融
+  金融: "股票K线+地球图标"
+  银行: "银行大楼+钱币图标"
+
+  # 投资机会（通用）
+  投资机会: "上涨箭头+K线图"
+  赛道机会: "赛道+箭头图标"
+  热点前瞻: "放大镜+趋势箭头图标"
+  投资: "投资K线+图表图标"
+  策略: "策略棋盘+图标"
+  市场分析: "分析图表+放大镜图标"
+  机会: "机会+闪电图标"
+
+# ============================================================
+# 【风格详细描述】（folder风格需要精确描述，其他风格由参考图定义）
 # ============================================================
 folder_style_desc: |
   拟物化写字板设计，文件夹卡片模块化布局，3D微缩场景
   米黄纸张背景，木质夹板边缘
   克莱因蓝 + 活力橙配色
   银色金属夹，圆角卡片，2.5D/3D效果
-  学习参考图folder-reference.webp的风格和布局
+  学习参考图folder-reference.webp的风格、纹理、边框、渲染
   每个文件夹卡片顶部有彩色标签条（Tab），像真实文件夹的便签标签
   每个宫格的内容要有不同的背景纹理（电路板/晶体矿石/光伏板/原子结构/海洋等），增加视觉丰富度
 
-# 默认风格
-default_style: "blueprint_lab"
-
-# baoyu官方标准布局（20种）
-# 不指定时自动根据主题数量适配
-supported_layouts:
-  # 基础布局（默认使用）
-  single_panel: "单面板居中布局（1个主题）"
-  two_column: "左右两栏布局（2个主题）"
-  three_column: "左中右三栏布局（3个主题）"
-  grid_2x2: "2x2网格布局（4个主题）"
-  grid_3x3: "3x3网格布局（9个主题）"
-  # 信息图专用布局
-  pyramid: "金字塔层级结构"
-  journey_path: "旅程路径/时间线"
-  timeline_horizontal: "横向时间线"
-  timeline_vertical: "纵向时间线"
-  mind_map: "思维导图"
-  tree_hierarchy: "树形层级结构"
-  venn: "维恩图"
-  funnel: "漏斗图"
-  comparison_table: "对比表格"
-  priority_quadrants: "优先级四象限"
-  circular_flow: "循环流程图"
-  fishbone: "鱼骨图"
-  layers_stack: "层级堆叠图"
-  bridge: "桥梁结构"
-  do_dont: "对错对比图"
-
-# baoyu官方标准风格（17种）
-# 不指定时自动根据主题匹配
-supported_styles:
-  blueprint_lab: "科技蓝图风（适合算力/AI/芯片）"
-  retro_pop_grid: "复古网格风（适合资源/金属/周期）"
-  vintage_journal: "复古期刊风（适合医药/化工）"
-  acid_block: "赛博朋克风（适合锂电/新能源）"
-  archive: "档案风（适合金融/银行）"
-  chalkboard: "黑板手绘风"
-  editorial: "编辑杂志风"
-  elegant: "优雅轻奢风"
-  flat: "扁平化风格"
-  minimal: "极简风"
-  notion: "Notion笔记风"
-  pixel_art: "像素艺术风"
-  playful: "活泼可爱风（适合小红书）"
-  retro: "复古怀旧风"
-  sketch: "手绘草图风"
-  warm: "暖色调温馨风"
-  watercolor: "水彩手绘风"
-
-# 平台尺寸配置（自动适配对应比例）
-platform_aspect_ratios:
-  toutiao: "16:9"  # 头条/普通封面
-  xhs: "3:4"       # 小红书竖版
-  wechat: "2.35:1" # 公众号封面
-  default: "16:9"
-
-# ============================================================
-# 【核心】赛道→精确图标描述（大爷验证最优格式）
-# 格式：赛道名: "精确图标描述，标注文字"
-# 关键：图标描述要具体到「什么东西」，AI照着生成不要发挥
-# ============================================================
-stock_topic_slot_icons:
-  AI数字经济: "电路板+芯片图标"
-  有色金属: "金矿+金属晶体图标"
-  储能锂电: "太阳能板+电池图标"
-  量子通信: "原子轨道+纠缠光束图标"
-  深海科技: "海浪+潜水器图标"
-  投资机会: "上涨箭头+K线图"
-  博鳌论坛: "会议场馆+地球图标"
-  稀土: "稀土矿石+发光晶体图标"
-  黄金: "金块+金币图标"
-  铜: "铜块+电缆图标"
-  油气: "石油钻井+输油管道图标"
-  航运: "集装箱货轮+港口图标"
-  机器人: "人形机器人+机械臂图标"
-  算力: "GPU芯片+服务器图标"
-  芯片: "方形芯片+针脚图标"
-  航天: "商业火箭+卫星星座图标"
-  医药: "药瓶+分子结构图标"
-  光伏: "光伏板+阳光图标"
-  电网: "电塔+电网图标"
-  银行: "银行大楼+钱币图标"
-  战略金属: "金黄色金属矿石+钨矿图标"
-  小金属: "铜矿+锌矿+金属矿石图标"
-  电力: "电塔+变压器+电网图标"
-  特高压: "特高压电塔+输电线路图标"
-  脑机接口: "大脑+电波信号+神经节点图标"
-  低空经济: "无人机+垂直起降图标"
-  商业航天: "商业火箭+卫星星座图标"
-  光模块: "光纤接口+光模块图标"
-  存储芯片: "存储芯片+数据流图标"
-  创新药: "DNA双螺旋+药物分子图标"
-  军工: "战斗机+盾牌图标"
-  PCB: "印制电路板+焊接点图标"
-  消费电子: "折叠屏手机+AI芯片图标"
-  可控核聚变: "等离子体环+能量球图标"
-  CXO: "实验室瓶+合同文件图标"
-
-# ============================================================
-# 【核心】2x3六宫格精确布局描述（大爷验证最优格式）
-# AI直接照着这个生成，不需要自己发挥
-# ============================================================
-grid_2x3_slot_template: |
-  2.35:1宽屏比例，复古羊皮卷质感背景，寻找A股投资机会主题。
-  采用2x3网格布局，每个板块有清晰边框和背景纹理：
-  1. 上左格：【上中格的图标】，标注'XX'
-  2. 上中格：【上中格的图标】，标注'XX'
-  3. 上右格：【上中格的图标】，标注'XX'
-  4. 下左格：【下中格的图标】，标注'XX'
-  5. 下中格：【下中格的图标】，标注'XX'
-  6. 下右格：【下中格的图标】，标注'XX'
-  顶部居中大标题：'XXXX'，字体稳重清晰，整体色调统一偏暖色系，专业金融研报质感，无人物，高质量，无文字错误
-
-# ============================================================
-# hub-spoke 环形放射详细参数（5个赛道最优布局）
-# ============================================================
-hub_spoke_5_template: |
-  2.35:1宽屏比例，【背景风格】。
-  采用环形放射布局，5个圆形面板围绕中心主标题：
-  - 中心：主标题文字「XXXX」
-  - 左上方（约11点方向）：【图标】，标注'XX赛道'
-  - 右上方（约1点方向）：【图标】，标注'XX赛道'
-  - 正左侧（约9点方向）：【图标】，标注'XX赛道'
-  - 正右侧（约3点方向）：【图标】，标注'XX赛道'
-  - 正下方（约6点方向）：【图标】，标注'XX赛道'
-  每个圆形面板：带完整金属边框，C4D渲染风格，统一光影
-  整体色调：【暖色/科技蓝等】，专业金融研报质感
-  禁止：边框缺失、面板截断、布局歪斜、无文字错误
-
 # ============================================================
 # 布局推荐策略（按赛道数量自动选择）
-# ============================================================
+# 注意：代码最多支持6个主题（top3_bottom2/grid_2x3），不包含grid_3x3
 layout_by_topic_count:
   1: "single_panel"
   2: "two_column"
   3: "three_column"
   4: "grid_2x2"
-  5: "hub_spoke"   # 5个赛道默认环形放射
-  6: "grid_2x3"    # 6个主题 → 2x3六宫格（大爷验证最优）
-  7: "grid_3x3"
+  5: "top3_bottom2"   # 5个赛道默认上3下2（大爷最爱）
+  6: "grid_2x3"       # 6个主题 → 2x3六宫格
 
 # 5赛道可选布局（大爷验证）
-# 可通过 --layout 参数指定想要的布局
 five_topic_layouts:
   default: "hub_spoke"          # 环形放射，5个面板围绕中心，均等夹角
   recommended: "top3_bottom2"   # 顶部3格 + 底部2格，均衡对称（大爷最爱）
@@ -257,3 +300,119 @@ five_topic_layouts:
     - "top3_bottom2"            # 上3下2，均衡对称
     - "left4_right1"           # 左侧4格2x2 + 右侧1个大格
     - "fan_shaped"              # 扇形展开
+
+# ============================================================
+# 平台尺寸配置（自动适配对应比例）
+# ============================================================
+platform_aspect_ratios:
+  toutiao: "16:9"   # 头条/普通封面
+  xhs: "3:4"         # 小红书竖版
+  wechat: "2.35:1"  # 公众号封面
+  default: "16:9"
+
+# ============================================================
+# 【强制规范】公众号封面生成规则
+# ============================================================
+wechat_cover_rules:
+  max_title_length: 13         # 公众号封面标题最多13字（确保完整显示）
+  forbidden_titles:
+    - "十大金股"
+    - "个股精选"
+    - "本周机会"
+    - "每日复盘"
+    - "周度报告"
+    - "个股机会"
+  forbidden_words:
+    - "震惊"
+    - "必涨"
+    - "100%"
+    - "暴跌"
+  output_to_article_dir: true   # 强制输出到文章HTML同一目录
+
+  title_templates:
+    数字型:
+      pattern: "{count}大热点机会"
+      keywords: []
+    痛点型:
+      pattern: "避坑指南来了"
+      keywords: ["风险", "回调", "下跌", "利空", "预警", "暴跌"]
+    利益型:
+      pattern: "稳健配置机会"
+      keywords: ["稳健", "低风险", "确定性", "防御", "安全"]
+    悬念型:
+      pattern: "赛道分化来袭"
+      keywords: ["分化", "分歧", "轮动", "切换"]
+    点题型:
+      pattern: "今日主线机会"
+      report_patterns: ["盘前", "日度", "今日", "每日"]
+
+# ============================================================
+# 布局视觉定义（补充文字描述，方便理解）
+# ============================================================
+layout_definitions:
+  top3_bottom2: "顶部3格横排 + 底部2格横排，均衡对称，大爷最爱"
+  hub_spoke: "5个面板环形放射围绕中心，适合展示多个相关主题"
+  left4_right1: "左侧4格2×2 + 右侧1个大格，适合4+1组合"
+  fan_shaped: "扇形展开，上1中2下2，适合5个主题"
+  grid_2x3: "2×3六宫格，6个主题均分布局"
+  grid_2x2: "2×2四宫格"
+  three_column: "左中右三栏"
+  two_column: "左右两栏"
+  single_panel: "单面板居中"
+
+# 默认风格
+default_style: "blueprint_lab"
+
+# ============================================================
+# 【新增】布局位置精确描述（供代码组装逐格提示词）
+# 格式：布局名: [位置1, 位置2, ...]
+# ============================================================
+layout_positions:
+  grid_2x3: ["上左格", "上中格", "上右格", "下左格", "下中格", "下右格"]
+  hub_spoke: ["左上方（约11点方向）", "右上方（约1点方向）", "正左侧（约9点方向）", "正右侧（约3点方向）", "正下方（约6点方向）"]
+  fan_shaped: ["顶部中央（扇形顶点）", "中左（扇骨左侧）", "中右（扇骨右侧）", "底左（扇骨左下）", "底右（扇骨右下）"]
+  left4_right1: ["左上格", "右上格", "左下格", "右下格"]
+  top3_bottom2: ["上左格", "上中格", "上右格", "下左格", "下右格"]
+  grid_2x2: ["左上格", "右上格", "左下格", "右下格"]
+  three_column: ["左格", "中格", "右格"]
+  two_column: ["左格", "右格"]
+  single_panel: ["中央区域"]
+
+# ============================================================
+# 【新增】布局组装描述（代码组装时的布局说明）
+# ============================================================
+layout_assembly:
+  hub_spoke:
+    format: "bullet"
+    prefix: "5个面板围绕中心标题："
+  left4_right1:
+    format: "numbered_with_right"
+    prefix: "左侧4格2x2网格 + 右侧1个大格："
+  default:
+    format: "numbered"
+    prefix: ""
+
+# ============================================================
+# 【新增】风格背景描述（STYLE_BG_MAP迁移至此）
+# ============================================================
+style_bg_map:
+  folder: "拟物化文件夹/写字板质感背景"
+  blueprint_lab: "科技蓝图风格背景"
+  retro_pop_grid: "复古波普网格风格背景"
+  acid_block: "赛博朋克霓虹风格背景"
+  thermal: "手绘黑板风格背景"
+  vintage_journal: "复古期刊风格背景"
+  archive: "档案文件风格背景"
+  ticket: "票据风格背景"
+
+# ============================================================
+# 【中文提示词模板】全部中文，统一使用此模板
+# ============================================================
+cn_prompt_template: |
+  {aspect_ratio}宽屏比例，{bg_style}。采用{layout_desc}：
+  {topic_visual}
+  {ref_guide}
+  顶部居中大标题：'{main_title}'，字体稳重清晰。
+  每个宫格内：图标居中在上，赛道名称标注在图标下方。
+  所有中文标注必须正确清晰，无任何英文标签。
+  质量规范：超高清渲染，大师级画质，细节清晰分明，专业金融研报质感，保留专业设计质感。禁止在图片任何位置嵌入模型签名、生成参数、版本号或任何额外文字标注。
