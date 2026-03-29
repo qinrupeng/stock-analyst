@@ -19,7 +19,7 @@ SKILL_ROOT = SCRIPT_DIR.parent
 SKILLS_DIR = SKILL_ROOT.parent
 BASE_DIR = SKILLS_DIR.parent
 
-REPORTS_DIR = BASE_DIR / "stock-analyst-cat" / "reports"
+REPORTS_DIR = BASE_DIR / "reports" / "stock"
 OUTPUT_DIR = BASE_DIR / "reports" / "images" / "stock-covers"
 CONFIG_DIR = SKILL_ROOT / "config"
 IMAGEN_SCRIPT = SKILLS_DIR / "imagen" / "scripts" / "generate_image.py"
@@ -212,12 +212,44 @@ def build_topic_visual_text(topics: list, layout_type: str) -> str:
         text = f"{prefix}\n{text}"
     return text
 
-def build_ref_descriptions(ref_images: list) -> str:
+def build_ref_descriptions(ref_images: list, dominant_style: str = None) -> str:
+    """根据参考图反向查找风格key，再从style_bg_map取中文描述
+    优先使用主风格（dominant_style）对应的描述，同名文件冲突时用主风格兜底"""
     parts = []
+    srm = get_style_ref_map()
+    bg_map = get_style_bg_map()
+    # 优先风格key列表（主风格排前面，用于同名文件冲突时取主风格的描述）
+    preferred_keys = []
+    if dominant_style:
+        preferred_keys.append(dominant_style)
+    # 也把非xhs、非slide的原始主风格加进去
+    for k in srm:
+        if not k.startswith('xhs_') and not k.endswith('_slide') and not k.endswith('_style') and not k.endswith('_illustration'):
+            if k not in preferred_keys:
+                preferred_keys.append(k)
+    # 反向查找：filename -> [style_keys]（可能多个）
+    file_to_keys = {}
+    for k, v in srm.items():
+        if v not in file_to_keys:
+            file_to_keys[v] = []
+        file_to_keys[v].append(k)
     for i, ref_path in enumerate(ref_images, 1):
-        parts.append(f"""## 参考图{i} ({ref_path.name}):
-- 风格: {ref_path.stem}
-- 必须严格遵循此参考图的配色方案、渲染风格、视觉元素
+        fname = ref_path.name
+        keys_for_file = file_to_keys.get(fname, [])
+        # 优先用主风格匹配到的key，其次用第一个非变体key
+        style_key = None
+        for pk in preferred_keys:
+            if pk in keys_for_file:
+                style_key = pk
+                break
+        if not style_key and keys_for_file:
+            style_key = keys_for_file[0]
+        if not style_key:
+            style_key = ref_path.stem
+        style_desc = bg_map.get(style_key, "专业金融研报风格")
+        parts.append(f"""## 参考图{i}（{ref_path.name}）:
+- 风格: {style_desc}
+- 严格遵循此参考图的配色方案、渲染风格、视觉元素
 - 生成的图片必须看起来与参考图属于同一视觉系列""")
     return "\n".join(parts)
 
@@ -311,7 +343,7 @@ def build_prompt(analysis: dict, args) -> dict:
     layout_desc = get_layout_desc(layout_type)
 
     # 参考图描述：有图则注入参考图风格，无图则用默认描述
-    ref_desc = build_ref_descriptions(ref_images)
+    ref_desc = build_ref_descriptions(ref_images, dominant_style=style)
     if ref_desc:
         ref_guide = f"参考图风格约束：\n{ref_desc}"
     else:
