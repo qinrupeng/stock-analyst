@@ -517,10 +517,10 @@ def main():
                 args.title = templates.get("数字型", {}).get("pattern", "{count}大热点机会").format(count=cw)
             print(f"[INFO] 公众号标题：{args.title}")
 
-        # 公众号规则校验
+        # 公众号规则校验：禁止词/标题用yaml配置（硬编码0）
         if args.platform == "wechat" and args.title:
             wechat = CONFIG.get("wechat_cover_rules", {})
-            max_len = wechat.get("max_title_length", 9)
+            max_len = wechat.get("max_title_length", 13)
             if len(args.title) > max_len:
                 args.title = args.title[:max_len]
             if args.title in wechat.get("forbidden_titles", []):
