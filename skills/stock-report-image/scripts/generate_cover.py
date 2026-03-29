@@ -90,28 +90,39 @@ def find_ref_image(style_key: str) -> Path:
             return ref_path
     return None
 
-def detect_style_for_topic(topic: str, full_content: str = "") -> str:
-    """topic=主题标题, full_content=完整内容(含描述)，用于关键词回退扫描"""
+def detect_style_for_topic(topic: str, full_content: str = "") -> tuple:
+    """topic=主题标题, full_content=完整内容(含描述)，返回(style, matched_keyword)"""
     theme_styles = get_theme_styles()
+    icons = get_topic_icons()
     default = get_default_style()
     scan_text = full_content if full_content else topic
-    # 直接匹配
+    # 直接匹配：theme_styles的key是否在topic标题里
     for keyword, style in theme_styles.items():
         if keyword in topic:
-            return style
+            return style, keyword
     # 回退1：在完整内容中扫描fallback关键词
     fallback_map = CONFIG.get("theme_topic_fallback", {})
     for theme_name, fallback_keywords in fallback_map.items():
         if theme_name in topic:
             for kw in fallback_keywords:
-                for keyword, style in theme_styles.items():
-                    if keyword in scan_text:
-                        return style
+                # 检查kw是否在scan_text里
+                if kw in scan_text:
+                    # 在theme_styles里找对应风格
+                    matched_style = next((v for k, v in theme_styles.items() if k == kw), None)
+                    if matched_style:
+                        return matched_style, kw
+                    # 在icons里找对应图标（用icons的style默认值）
+                    if kw in icons:
+                        return default, kw
     # 回退2：在完整内容中直接扫描所有theme_styles关键词
     for keyword, style in theme_styles.items():
         if keyword in scan_text:
-            return style
-    return default
+            return style, keyword
+    # 回退3：在完整内容中扫描icons关键词
+    for keyword, icon in icons.items():
+        if keyword in scan_text and keyword not in topic:
+            return default, keyword
+    return default, topic
 
 def get_topic_icon(topic: str, full_content: str = "") -> str:
     """topic=主题标题, full_content=完整内容(含描述)，用于关键词回退扫描"""
@@ -145,11 +156,11 @@ def analyze_topics(topics: list) -> dict:
             title, full_content = topic_tuple
         else:
             title, full_content = topic_tuple, topic_tuple
-        style = detect_style_for_topic(title, full_content)
+        style, matched_kw = detect_style_for_topic(title, full_content)
         ref_path = find_ref_image(style)
-        topic_styles.append({"topic": title, "full": full_content, "style": style, "ref": ref_path})
+        topic_styles.append({"topic": title, "full": full_content, "style": style, "ref": ref_path, "label": matched_kw or title})
         style_counts[style] = style_counts.get(style, 0) + 1
-        print(f"  - {title} → {style}")
+        print(f"  - {title} → {style}{f' (原始词: {matched_kw})' if matched_kw and matched_kw != title else ''}")
     dominant = max(style_counts, key=style_counts.get)
     ref_images = []
     seen = set()
@@ -178,25 +189,24 @@ def build_topic_visual_text(topics: list, layout_type: str) -> str:
     max_slots = len(slots)
     lines = []
     for i, topic in enumerate(topics[:max_slots]):
-        if isinstance(topic, tuple):
-            title, full_content = topic
-        else:
-            title, full_content = topic, topic
-        icon = get_topic_icon(title, full_content)
+        # 标注用matched原始词(label)，不用主题标题(topic)
+        label = topic.get("label", topic["topic"])
+        title = topic["topic"]
+        full = topic.get("full", title)
+        icon = get_topic_icon(title, full)
         pos = slots[i]
         if fmt == "bullet":
-            lines.append(f"- {pos}：{icon}，标注'{title}'")
+            lines.append(f"- {pos}：{icon}，标注'{label}'")
         else:
-            lines.append(f"{i+1}. {pos}：{icon}，标注'{title}'")
+            lines.append(f"{i+1}. {pos}：{icon}，标注'{label}'")
 
     # left4_right1 特殊：第5格是右侧大格
     if layout_type == "left4_right1":
         right_topic = topics[4] if len(topics) > 4 else topics[-1]
-        if isinstance(right_topic, tuple):
-            title, full_content = right_topic
-        else:
-            title, full_content = right_topic, right_topic
-        lines.append(f"5. 右侧大格（突出总结区）：{get_topic_icon(title, full_content)}，标注'{title}'")
+        label = right_topic.get("label", right_topic["topic"])
+        title = right_topic["topic"]
+        full = right_topic.get("full", title)
+        lines.append(f"5. 右侧大格（突出总结区）：{get_topic_icon(title, full)}，标注'{label}'")
 
     text = "\n".join(lines)
     if prefix:
@@ -325,8 +335,8 @@ def build_prompt(analysis: dict, args) -> dict:
             if candidates:
                 main_title = f"A股{''.join(candidates[:2])}"
 
-    # 组装各部分（传完整tuple，让回退逻辑能扫描完整主题内容）
-    topic_visual = build_topic_visual_text([(t["topic"], t["full"]) for t in topics], layout_type)
+    # 组装各部分（topics是dict列表，含label原始词，用于标注）
+    topic_visual = build_topic_visual_text(topics, layout_type)
     bg_style = build_bg_style(style)
     layout_desc = get_layout_desc(layout_type)
 
