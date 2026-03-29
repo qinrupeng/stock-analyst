@@ -258,7 +258,7 @@ def build_prompt(analysis: dict, args) -> dict:
         aspect_ratio = "2.35:1"
 
     if getattr(args, "title", None) and args.title:
-        main_title = args.title[:12] + "..." if len(args.title) > 12 else args.title
+        main_title = args.title[:20] if len(args.title) > 20 else args.title
     else:
         main_title = "A股热点前瞻"
         candidates = [t["topic"] for t in topics if any(kw in t["topic"] for kw in ["机会", "赛道", "前瞻", "热点"])]
