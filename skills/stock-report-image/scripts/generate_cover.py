@@ -294,37 +294,8 @@ def build_prompt(analysis: dict, args) -> dict:
     aspect_ratio = get_aspect_ratio(platform)
     if platform == "wechat":
         aspect_ratio = "2.35:1"
-        # 接入wechat_cover_rules
-        rules = get_wechat_cover_rules()
-        title_templates = rules.get("title_templates", {})
-        max_len = rules.get("max_title_length", 13)
-
-        if getattr(args, "title", None) and args.title:
-            # 用户指定标题 → 应用禁止词+长度规则
-            main_title = apply_wechat_title_rules(args.title, topics)
-        else:
-            # 无指定标题 → 从模板自动生成
-            # 先尝试根据内容关键词匹配模板
-            topic_text = " ".join([t["full"] for t in topics])
-            matched_template = None
-            for tmpl_name, tmpl_cfg in title_templates.items():
-                # 优先用report_patterns匹配（如盘前→点题型）
-                report_patterns = tmpl_cfg.get("report_patterns", [])
-                if report_patterns and any(p in topic_text for p in report_patterns):
-                    matched_template = tmpl_cfg["pattern"]
-                    print(f"[INFO] 标题模板匹配：{tmpl_name}（关键词：{report_patterns}）")
-                    break
-                # 其次用keywords匹配
-                keywords = tmpl_cfg.get("keywords", [])
-                if keywords and any(kw in topic_text for kw in keywords):
-                    matched_template = tmpl_cfg["pattern"]
-                    print(f"[INFO] 标题模板匹配：{tmpl_name}（关键词：{keywords}）")
-                    break
-            if matched_template:
-                main_title = matched_template
-            else:
-                main_title = f"{topic_count}大主线机会"
-            main_title = apply_wechat_title_rules(main_title, topics)
+        # 公众号标题统一由main函数处理（模板匹配+禁止词+长度限制），这里直接用
+        main_title = getattr(args, "title", None) or "今日主线机会"
     else:
         # 非公众号平台
         if getattr(args, "title", None) and args.title:
