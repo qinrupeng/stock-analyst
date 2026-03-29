@@ -503,7 +503,7 @@ def main():
         dated = OUTPUT_DIR / datetime.now().strftime("%Y-%m-%d")
         dated.mkdir(exist_ok=True)
         ts = datetime.now().strftime("%H%M%S")
-        safe = re.sub(r'[\\/:*?"<>|]', '_', topics[0])[:15]
+        safe = re.sub(r'[\\/:*?"<>|]', '_', topics[0][0])[:15]
         output_path = dated / f"{ts}_cover_{safe}.png"
         copied = copy_refs(prompt_data["ref_images"], OUTPUT_DIR)
 
