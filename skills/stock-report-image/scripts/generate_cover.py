@@ -1,14 +1,9 @@
 # -*- coding: utf-8 -*-
+"""热点报告配图生成器 - yaml驱动版
+所有布局位置、风格背景、提示词模板全部在yaml里
+代码只做：读yaml → 读报告 → 组装 → 生图
 """
-热点报告配图生成器 - 智能封面版
-支持：--cover（1张整合封面，自动匹配多参考图）
-"""
-import sys
-import os
-import re
-import io
-import shutil
-import yaml
+import sys, os, re, io, shutil, yaml
 from pathlib import Path
 
 # 修复 Windows 控制台编码
@@ -18,800 +13,526 @@ if sys.platform == 'win32':
 
 from datetime import datetime
 
-# ==================== 路径配置（动态适配OpenClaw工作目录）====================
-# 自动计算路径，无需硬编码，适配任意工作目录
-SCRIPT_DIR = Path(__file__).parent  # 脚本所在目录: /skills/stock-report-image/scripts
-SKILL_ROOT = SCRIPT_DIR.parent      # 技能根目录: /skills/stock-report-image
-SKILLS_DIR = SKILL_ROOT.parent      # 技能总目录: /skills
-BASE_DIR = SKILLS_DIR.parent        # OpenClaw工作根目录（自动识别）
+# ==================== 路径配置 ====================
+SCRIPT_DIR = Path(__file__).parent
+SKILL_ROOT = SCRIPT_DIR.parent
+SKILLS_DIR = SKILL_ROOT.parent
+BASE_DIR = SKILLS_DIR.parent
 
-# 业务路径（自动适配当前工作目录）
-REPORTS_DIR = BASE_DIR / "stock-analyst-cat" / "reports"  # A股报告目录
-OUTPUT_DIR = BASE_DIR / "reports" / "images" / "stock-covers"  # 输出目录
-CONFIG_DIR = SKILL_ROOT / "config"  # 配置文件目录
-# 生图模型路径（自动检测可用）
-IMAGEN_SCRIPT = SKILLS_DIR / "imagen" / "scripts" / "generate_image.py"  # 火山引擎imagen
-AUTOGLM_SCRIPT = SKILLS_DIR / "autoglm-generate-image" / "generate-image.py"  # 智谱autoglm
-DOCS_DIR = SKILL_ROOT / "docs"  # 本技能文档目录
+REPORTS_DIR = BASE_DIR / "stock-analyst-cat" / "reports"
+OUTPUT_DIR = BASE_DIR / "reports" / "images" / "stock-covers"
+CONFIG_DIR = SKILL_ROOT / "config"
+IMAGEN_SCRIPT = SKILLS_DIR / "imagen" / "scripts" / "generate_image.py"
+AUTOGLM_SCRIPT = SKILLS_DIR / "autoglm-generate-image" / "generate-image.py"
+DOCS_DIR = SKILL_ROOT / "docs"
 REF_DIRS = [
     SKILL_ROOT / "cover-image-styles",
     SKILL_ROOT / "article-illustrator-styles",
-    SKILL_ROOT / "infographic-reference",
-    SKILL_ROOT / "xhs-images-styles",  # 保留小红书风格资源
-    SKILL_ROOT / "xhs-images-layouts",  # 保留小红书布局资源
+    SKILL_ROOT / "infographic-styles",
+    SKILL_ROOT / "xhs-images-styles",
+    SKILL_ROOT / "xhs-images-layouts",
 ]
 
-
-# ==================== 读取prompt模板文件 ====================
-def load_prompt_template(template_name: str) -> str:
-    """从docs目录读取prompt模板"""
-    template_path = DOCS_DIR / template_name
-    if template_path.exists():
-        content = template_path.read_text(encoding='utf-8')
-        # 提取英文部分（支持多种格式）
-        if "## English" in content:
-            # 格式1: ## English / ## 中文
-            en_part = content.split("## English")[1].split("## 中文")[0] if "## 中文" in content else content.split("## English")[1]
-            return en_part.strip()
-        elif "# " in content and "===" not in content[:100]:
-            # 格式2: 纯英文内容，无中英文分隔
-            return content.strip()
-        else:
-            # 找不到英文部分，返回空
-            return ""
-    return ""
-
-
-# 预加载常用模板
-PROMPT_TEMPLATES = {
-    "neg_constraints": load_prompt_template("negative-constraints.md"),
-}
-
-# ==================== 加载风格配置（优先读取config/styles_config.yaml，不存在则用默认值
+# ==================== 配置加载（全部从yaml，不写硬编码）====================
 CONFIG_PATH = CONFIG_DIR / "styles_config.yaml"
-DEFAULT_STYLE_REF_MAP = {
-    "blueprint_lab": "blueprint.webp",
-    "retro_pop_grid": "retro.webp",
-    "acid_block": "cyberpunk-neon.webp",
-    "thermal": "chalkboard.webp",
-    "vintage_journal": "vintage.webp",
-    "folder": "flat.webp",
-    "archive": "editorial.webp",
-    "ticket": "playful.webp",
-    "blueprint": "blueprint.webp",
-    "retro": "retro.webp",
-    "chalkboard": "chalkboard.webp",
-    "vintage": "vintage.webp",
-    "minimal": "flat.webp",
-}
-DEFAULT_THEME_STYLES = {
-    "算力": "blueprint_lab", "芯片": "blueprint_lab", "AI": "blueprint_lab",
-    "人工智能": "blueprint_lab", "半导体": "blueprint_lab",
-    "电力": "blueprint_lab", "电网": "blueprint_lab", "变压器": "blueprint_lab",
-    "光伏": "blueprint_lab", "新能源": "blueprint_lab",
-    "航天": "blueprint_lab", "卫星": "blueprint_lab", "火箭": "blueprint_lab", "低空": "blueprint_lab",
-    "钨": "retro_pop_grid", "稀土": "retro_pop_grid", "小金属": "retro_pop_grid",
-    "黄金": "retro_pop_grid", "白银": "retro_pop_grid", "铜": "retro_pop_grid",
-    "锂": "retro_pop_grid", "镍": "retro_pop_grid", "金属": "retro_pop_grid",
-    "战略金属": "retro_pop_grid", "磷化工": "vintage_journal", "化肥": "vintage_journal",
-    "化工": "vintage_journal", "医药": "vintage_journal", "医疗": "vintage_journal",
-    "金融": "archive", "银行": "archive", "锂电": "acid_block", "电池": "acid_block",
-}
-DEFAULT_STYLE = "blueprint_lab"
+CONFIG = {}
 
-# 加载配置文件（所有赛道图标从 styles_config.yaml 读取）
-STYLE_REF_MAP = DEFAULT_STYLE_REF_MAP
-THEME_STYLES = DEFAULT_THEME_STYLES
-STOCK_TOPIC_SLOT_ICONS = {}  # 从YAML加载，不写硬编码
+def _load_config():
+    global CONFIG
+    if CONFIG_PATH.exists():
+        try:
+            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                CONFIG = yaml.safe_load(f) or {}
+            print(f"[INFO] 已加载配置: {CONFIG_PATH}")
+        except Exception as e:
+            print(f"[ERROR] 配置文件加载失败: {e}")
+    else:
+        print(f"[ERROR] 配置文件不存在: {CONFIG_PATH}")
 
-if CONFIG_PATH.exists():
-    try:
-        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-            config = yaml.safe_load(f)
-        if config.get("style_ref_map"):
-            STYLE_REF_MAP.update(config["style_ref_map"])
-        if config.get("theme_styles"):
-            THEME_STYLES.update(config["theme_styles"])
-        if config.get("default_style"):
-            DEFAULT_STYLE = config["default_style"]
-        if config.get("stock_topic_slot_icons"):
-            STOCK_TOPIC_SLOT_ICONS.update(config["stock_topic_slot_icons"])
-        print(f"[INFO] 已加载风格配置: {CONFIG_PATH}")
-    except Exception as e:
-        print(f"[WARN] 配置文件加载失败，使用默认配置: {e}")
-else:
-    # 配置文件不存在，自动生成默认配置
-    default_config = {
-        "style_ref_map": DEFAULT_STYLE_REF_MAP,
-        "theme_styles": DEFAULT_THEME_STYLES,
-        "default_style": DEFAULT_STYLE
-    }
-    try:
-        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-            yaml.dump(default_config, f, default_flow_style=False, allow_unicode=True)
-        print(f"[INFO] 已生成默认配置文件: {CONFIG_PATH}")
-    except Exception as e:
-        print(f"[WARN] 生成配置文件失败: {e}")
+_load_config()
 
+# ==================== 配置读取辅助 ====================
+def get_style_ref_map():
+    return CONFIG.get("style_ref_map", {})
 
+def get_theme_styles():
+    return CONFIG.get("theme_styles", {})
+
+def get_topic_icons():
+    return CONFIG.get("stock_topic_slot_icons", {})
+
+def get_layout_positions():
+    return CONFIG.get("layout_positions", {})
+
+def get_style_bg_map():
+    return CONFIG.get("style_bg_map", {})
+
+def get_layout_assembly():
+    return CONFIG.get("layout_assembly", {})
+
+def get_default_style():
+    return CONFIG.get("default_style", "blueprint_lab")
+
+def get_aspect_ratio(platform):
+    return CONFIG.get("platform_aspect_ratios", {}).get(platform, "16:9")
+
+def get_folder_style_desc():
+    return CONFIG.get("folder_style_desc", "")
+
+# ==================== 核心函数 ====================
 
 def find_ref_image(style_key: str) -> Path:
-    """根据风格找到参考图路径"""
-    ref_filename = STYLE_REF_MAP.get(style_key, "blueprint.webp")
-    
+    ref_map = get_style_ref_map()
+    ref_filename = ref_map.get(style_key, "blueprint.webp")
     for ref_dir in REF_DIRS:
         ref_path = ref_dir / ref_filename
         if ref_path.exists():
             return ref_path
-    
     return None
 
-
-def detect_style_for_topic(topic: str) -> str:
-    """根据主题关键字判断风格"""
-    # 检查主题中是否包含关键词
-    for keyword, style in THEME_STYLES.items():
+def detect_style_for_topic(topic: str, full_content: str = "") -> str:
+    """topic=主题标题, full_content=完整内容(含描述)，用于关键词回退扫描"""
+    theme_styles = get_theme_styles()
+    default = get_default_style()
+    scan_text = full_content if full_content else topic
+    # 直接匹配
+    for keyword, style in theme_styles.items():
         if keyword in topic:
             return style
-    return DEFAULT_STYLE
+    # 回退1：在完整内容中扫描fallback关键词
+    fallback_map = CONFIG.get("theme_topic_fallback", {})
+    for theme_name, fallback_keywords in fallback_map.items():
+        if theme_name in topic:
+            for kw in fallback_keywords:
+                for keyword, style in theme_styles.items():
+                    if keyword in scan_text:
+                        return style
+    # 回退2：在完整内容中直接扫描所有theme_styles关键词
+    for keyword, style in theme_styles.items():
+        if keyword in scan_text:
+            return style
+    return default
 
+def get_topic_icon(topic: str, full_content: str = "") -> str:
+    """topic=主题标题, full_content=完整内容(含描述)，用于关键词回退扫描"""
+    icons = get_topic_icons()
+    scan_text = full_content if full_content else topic
+    # 直接匹配
+    for kw, icon in icons.items():
+        if kw in topic:
+            return icon
+    # 回退1：fallback关键词优先
+    fallback_map = CONFIG.get("theme_topic_fallback", {})
+    for theme_name, fallback_keywords in fallback_map.items():
+        if theme_name in topic:
+            for kw in fallback_keywords:
+                for keyword, icon in icons.items():
+                    if keyword in scan_text:
+                        return icon
+    # 回退2：直接在完整内容中扫描所有icons关键词
+    for keyword, icon in icons.items():
+        if keyword in scan_text:
+            return icon
+    return "科技图表"
 
-def analyze_topics_for_cover(topics: list) -> dict:
-    """
-    智能分析多主题，返回封面生成参数
-    返回: {
-        "styles": [{"topic": "电网", "style": "blueprint_lab", "ref": Path}],
-        "merged_topics": ["电网", "光伏", "火箭", "小金属"],
-        "dominant_style": "blueprint_lab",
-        "ref_images": [Path1, Path2, ...]
-    }
-    """
+def analyze_topics(topics: list) -> dict:
+    """topics: [(标题, 完整内容)]列表"""
     style_counts = {}
-    style_refs = {}
     topic_styles = []
-    
     print(f"\n[智能分析] 主题数量: {len(topics)}")
-    
-    # 1. 为每个主题判断风格
-    for topic in topics:
-        style = detect_style_for_topic(topic)
+    for topic_tuple in topics:
+        if isinstance(topic_tuple, tuple):
+            title, full_content = topic_tuple
+        else:
+            title, full_content = topic_tuple, topic_tuple
+        style = detect_style_for_topic(title, full_content)
         ref_path = find_ref_image(style)
-        
-        topic_styles.append({
-            "topic": topic,
-            "style": style,
-            "ref": ref_path
-        })
-        
-        # 统计风格出现次数
-        if style not in style_counts:
-            style_counts[style] = 0
-            style_refs[style] = ref_path
-        style_counts[style] += 1
-        
-        print(f"  - {topic} → {style}")
-    
-    # 2. 找出多数风格
-    dominant_style = max(style_counts, key=style_counts.get)
-    
-    # 3. 收集所有参考图（去重）
+        topic_styles.append({"topic": title, "full": full_content, "style": style, "ref": ref_path})
+        style_counts[style] = style_counts.get(style, 0) + 1
+        print(f"  - {title} → {style}")
+    dominant = max(style_counts, key=style_counts.get)
     ref_images = []
     seen = set()
     for ts in topic_styles:
         if ts["ref"] and ts["ref"] not in seen:
             ref_images.append(ts["ref"])
             seen.add(ts["ref"])
-    
     print(f"\n[风格统计]")
-    for style, count in style_counts.items():
-        print(f"  - {style}: {count}个主题")
+    for s, c in style_counts.items():
+        print(f"  - {s}: {c}个主题")
     print(f"[参考图] {len(ref_images)}张")
-    
-    return {
-        "topic_styles": topic_styles,
-        "merged_topics": topics,
-        "dominant_style": dominant_style,
-        "ref_images": ref_images,
-    }
+    return {"topic_styles": topic_styles, "dominant_style": dominant, "ref_images": ref_images}
 
+# ==================== 提示词组装（全部从yaml模板） ====================
 
-def build_cover_prompt(analysis: dict, args=None) -> dict:
-    """为封面图生成提示词（支持多参考图）- 优化版
-    args: 命令行参数，支持layout/style/platform覆盖
-    """
-    topics = analysis["merged_topics"]
+def build_topic_visual_text(topics: list, layout_type: str) -> str:
+    """根据布局组装逐格描述文本"""
+    positions = get_layout_positions()
+    layout_cfg = get_layout_assembly()
+    default_cfg = layout_cfg.get("default", {})
+    layout_specific = layout_cfg.get(layout_type, default_cfg)
+    fmt = layout_specific.get("format", "numbered")
+    prefix = layout_specific.get("prefix", "")
+
+    slots = positions.get(layout_type, ["中央区域"])
+    max_slots = len(slots)
+    lines = []
+    for i, topic in enumerate(topics[:max_slots]):
+        if isinstance(topic, tuple):
+            title, full_content = topic
+        else:
+            title, full_content = topic, topic
+        icon = get_topic_icon(title, full_content)
+        pos = slots[i]
+        if fmt == "bullet":
+            lines.append(f"- {pos}：{icon}，标注'{title}'")
+        else:
+            lines.append(f"{i+1}. {pos}：{icon}，标注'{title}'")
+
+    # left4_right1 特殊：第5格是右侧大格
+    if layout_type == "left4_right1":
+        right_topic = topics[4] if len(topics) > 4 else topics[-1]
+        if isinstance(right_topic, tuple):
+            title, full_content = right_topic
+        else:
+            title, full_content = right_topic, right_topic
+        lines.append(f"5. 右侧大格（突出总结区）：{get_topic_icon(title, full_content)}，标注'{title}'")
+
+    text = "\n".join(lines)
+    if prefix:
+        text = f"{prefix}\n{text}"
+    return text
+
+def build_ref_descriptions(ref_images: list) -> str:
+    parts = []
+    for i, ref_path in enumerate(ref_images, 1):
+        parts.append(f"""## 参考图{i} ({ref_path.name}):
+- 风格: {ref_path.stem}
+- 必须严格遵循此参考图的配色方案、渲染风格、视觉元素
+- 生成的图片必须看起来与参考图属于同一视觉系列""")
+    return "\n".join(parts)
+
+def build_bg_style(style: str) -> str:
+    """获取风格背景描述，folder优先用yaml里的详细描述"""
+    if style == "folder":
+        desc = get_folder_style_desc()
+        if desc:
+            return desc
+    bg_map = get_style_bg_map()
+    return bg_map.get(style, "专业金融研报风格背景")
+
+def get_layout_desc(layout_type: str) -> str:
+    """获取布局的简洁描述"""
+    layout_defs = CONFIG.get("layout_definitions", {})
+    return layout_defs.get(layout_type, "网格布局")
+
+def build_prompt(analysis: dict, args) -> dict:
+    """组装提示词——全部从yaml模板填充"""
+    topics = analysis["merged_topics"] = analysis["topic_styles"]
     style = analysis["dominant_style"]
     ref_images = analysis["ref_images"]
 
-    # 如果用户强制指定了风格，强制使用该风格的参考图
+    # 强制指定风格
     custom_style = getattr(args, "style", None) if args else None
-    if custom_style and custom_style in STYLE_REF_MAP:
-        # 强制使用指定风格的参考图
-        ref_name = STYLE_REF_MAP[custom_style]
-        ref_path = REF_DIRS[0] / ref_name  # cover-image-styles/
+    if custom_style and custom_style in get_style_ref_map():
+        ref_path = REF_DIRS[0] / get_style_ref_map()[custom_style]
         if ref_path.exists():
             ref_images = [ref_path]
-            style = custom_style  # 强制使用指定风格
-    
-    # 1. 构建主题描述 - 用逗号分隔，更清晰
-    topics_text = "、".join(topics)
-    
-    # 2. 【核心优化】逐格精确定义（大爷验证最优格式）
-    # 用STOCK_TOPIC_SLOT_ICONS查图标，没有的话用fallback映射
-    # 【新增】主题变体映射（让不同表述能匹配到正确的图标）
-    TOPIC_VARIANT_MAP = {
-        "SpaceX冲刺IPO": "商业火箭+卫星星座图标",
-        "SpaceX": "商业火箭+卫星星座图标",
-        "IPO": "商业火箭+卫星星座图标",
-        "CPO芯片光互联": "方形芯片+针脚图标",
-        "CPO": "方形芯片+针脚图标",
-        "光互联": "光纤接口+光模块图标",
-        "人形机器人具身智能": "人形机器人+机械臂图标",
-        "具身智能": "人形机器人+机械臂图标",
-        "机器人": "人形机器人+机械臂图标",
-        "绿电算电协同": "电塔+变压器+电网图标",
-        "绿电": "电塔+变压器+电网图标",
-        "算电协同": "电塔+变压器+电网图标",
-        "核聚变核电": "等离子体环+能量球图标",
-        "核聚变": "等离子体环+能量球图标",
-        "核电": "等离子体环+能量球图标",
-        "可控核聚变": "等离子体环+能量球图标",
-    }
+            style = custom_style
 
-    def get_topic_icon(topic):
-        # 1. 先检查变体映射
-        for kw, icon in TOPIC_VARIANT_MAP.items():
-            if kw in topic:
-                return icon
-        # 2. 再检查STOCK_TOPIC_SLOT_ICONS
-        for kw, icon in STOCK_TOPIC_SLOT_ICONS.items():
-            if kw in topic:
-                return icon
-        return "科技图表"
-
-    # 用户指定布局优先，否则根据主题数量自动适配
+    # 布局选择
+    topic_count = len(topics)
     custom_layout = getattr(args, "layout", None) if args else None
     if custom_layout:
-        # 用户指定了布局
         layout_type = custom_layout
-        print(f"[INFO] 已使用指定布局：{custom_layout}")
-    elif topic_count == 1:
-        layout_type = "single"
-    elif topic_count == 2:
-        layout_type = "two_column"
-    elif topic_count == 3:
-        layout_type = "three_column"
-    elif topic_count == 4:
-        layout_type = "grid_2x2"
-    elif topic_count == 5:
-        layout_type = "hub_spoke"
-    elif topic_count == 6:
-        layout_type = "grid_2x3"
+        print(f"[INFO] 已使用指定布局：{layout_type}")
     else:
-        layout_type = "single"
+        layout_map = CONFIG.get("layout_by_topic_count", {})
+        layout_type = layout_map.get(topic_count, layout_map.get("default", "top3_bottom2"))
+        print(f"[INFO] 自动选择布局（{topic_count}个主题→{layout_type}）")
 
-    # 构建逐格描述（大爷验证最优格式）
-    slot_lines = []
-    if layout_type == "grid_2x3":
-        # 2x3六宫格：上左/上中/上右/下左/下中/下右
-        positions = ["上左格", "上中格", "上右格", "下左格", "下中格", "下右格"]
-        for i, topic in enumerate(topics[:6]):
-            icon = get_topic_icon(topic)
-            slot_lines.append(f"{i+1}. {positions[i]}：{icon}，标注'{topic}'")
-    elif layout_type == "hub_spoke":
-        # 环形放射：5个面板围绕中心标题
-        positions = ["左上方（约11点方向）", "右上方（约1点方向）",
-                    "正左侧（约9点方向）", "正右侧（约3点方向）", "正下方（约6点方向）"]
-        for i, topic in enumerate(topics[:5]):
-            icon = get_topic_icon(topic)
-            slot_lines.append(f"- {positions[i]}：{icon}，标注'{topic}'")
-        topic_visual_text = "\n".join(slot_lines)
-        topic_visual_text = "5个面板围绕中心标题：\n" + topic_visual_text
-    elif layout_type == "fan_shaped":
-        # 扇形展开：上1中2下2，像扇子一样打开
-        positions = [
-            "顶部中央（扇形顶点）",
-            "中左（扇骨左侧）",
-            "中右（扇骨右侧）",
-            "底左（扇骨左下）",
-            "底右（扇骨右下）",
-        ]
-        for i, topic in enumerate(topics[:5]):
-            icon = get_topic_icon(topic)
-            slot_lines.append(f"{i+1}. {positions[i]}：{icon}，标注'{topic}'")
-        topic_visual_text = "\n".join(slot_lines)
-        topic_visual_text = "扇形展开布局，5个面板呈放射状：\n" + topic_visual_text
-    elif layout_type == "left4_right1":
-        # 左侧4格2x2 + 右侧1个大格
-        positions = ["左上格", "右上格", "左下格", "右下格"]
-        for i, topic in enumerate(topics[:4]):
-            icon = get_topic_icon(topic)
-            slot_lines.append(f"{i+1}. {positions[i]}：{icon}，标注'{topic}'")
-        slot_lines.append(f"5. 右侧大格（突出总结区）：{get_topic_icon(topics[4] if len(topics)>4 else topics[-1])}，标注'{topics[4] if len(topics)>4 else topics[-1]}'")
-        topic_visual_text = "\n".join(slot_lines)
-        topic_visual_text = "左侧4格2x2网格 + 右侧1个大格：\n" + topic_visual_text
-    elif layout_type == "top3_bottom2":
-        # 顶部3格横排 + 底部2格横排
-        positions = ["上左格", "上中格", "上右格", "下左格", "下右格"]
-        for i, topic in enumerate(topics[:5]):
-            icon = get_topic_icon(topic)
-            slot_lines.append(f"{i+1}. {positions[i]}：{icon}，标注'{topic}'")
-        topic_visual_text = "\n".join(slot_lines)
-        topic_visual_text = "顶部3格横排 + 底部2格横排：\n" + topic_visual_text
-    elif layout_type == "grid_2x2":
-        positions = ["左上格", "右上格", "左下格", "右下格"]
-        for i, topic in enumerate(topics[:4]):
-            icon = get_topic_icon(topic)
-            slot_lines.append(f"{i+1}. {positions[i]}：{icon}，标注'{topic}'")
-    elif layout_type == "three_column":
-        positions = ["左格", "中格", "右格"]
-        for i, topic in enumerate(topics[:3]):
-            icon = get_topic_icon(topic)
-            slot_lines.append(f"{i+1}. {positions[i]}：{icon}，标注'{topic}'")
-    elif layout_type == "two_column":
-        positions = ["左格", "右格"]
-        for i, topic in enumerate(topics[:2]):
-            icon = get_topic_icon(topic)
-            slot_lines.append(f"{i+1}. {positions[i]}：{icon}，标注'{topic}'")
-    else:
-        # 单面板
-        topic_visual_text = f"1. 中央区域：{get_topic_icon(topics[0])}，标注'{topics[0]}'"
-
-    if slot_lines:
-        topic_visual_text = "\n".join(slot_lines)
-    
-    # 3. 构建参考图描述（关键！）
-    ref_descriptions = []
-    for i, ref_path in enumerate(ref_images, 1):
-        ref_filename = ref_path.name
-        style_name = ref_path.stem
-        
-        ref_desc = f"""
-## 参考图{i} ({ref_filename}):
-- 风格: {style_name}
-- 必须严格遵循此参考图的：
-  * 配色方案（主色、辅色、强调色）
-  * 渲染风格（线条、纹理、深度）
-  * 视觉元素（图标、装饰）
-- 生成的图片必须看起来与参考图属于同一视觉系列"""
-        ref_descriptions.append(ref_desc)
-    
-    # 4. 英文提示词 - 只保留负向约束（其他模板已删除）
-    templates = []
-    if PROMPT_TEMPLATES.get("neg_constraints"):
-        templates.append(f"=== NEGATIVE CONSTRAINTS (from baoyu-skills) ===\n{PROMPT_TEMPLATES['neg_constraints']}")
-    
-    template_text = "\n\n".join(templates)
-    
-    # 平台适配：获取对应比例（必须在en_prompt之前，因为f-string里用了aspect_ratio）
+    # 标题
     platform = getattr(args, "platform", "toutiao") if args else "toutiao"
-    aspect_ratio_map = config.get("platform_aspect_ratios", {}) if config else {}
-    aspect_ratio = aspect_ratio_map.get(platform, "16:9")
-    # 公众号封面使用2.35:1比例（更适合长标题）
+    aspect_ratio = get_aspect_ratio(platform)
     if platform == "wechat":
         aspect_ratio = "2.35:1"
-    print(f"[INFO] 适配平台：{platform}，使用比例：{aspect_ratio}")
 
-    # 主标题：如果传入了--title就用它，否则从topics推断
-    # 截断过长标题（封面图标题建议≤12字）
     if getattr(args, "title", None) and args.title:
-        raw_title = args.title
-        # 截断标题：保留前12个字
-        if len(raw_title) > 12:
-            main_title = raw_title[:12] + "..."
-        else:
-            main_title = raw_title
+        main_title = args.title[:12] + "..." if len(args.title) > 12 else args.title
     else:
         main_title = "A股热点前瞻"
-        if topics_text:
-            main_title_candidates = [t for t in topics if any(kw in t for kw in ["机会", "赛道", "前瞻", "热点"])]
-            if main_title_candidates:
-                main_title = f"A股{''.join(main_title_candidates[:2])}"
-    
-    en_prompt = f"""Create a professional financial news cover image.
+        candidates = [t["topic"] for t in topics if any(kw in t["topic"] for kw in ["机会", "赛道", "前瞻", "热点"])]
+        if candidates:
+            main_title = f"A股{''.join(candidates[:2])}"
 
-=== COVER TEXT (MUST DISPLAY CLEARLY) ===
-Title: "{main_title}"
+    # 组装各部分（传完整tuple，让回退逻辑能扫描完整主题内容）
+    topic_visual = build_topic_visual_text([(t["topic"], t["full"]) for t in topics], layout_type)
+    bg_style = build_bg_style(style)
+    layout_desc = get_layout_desc(layout_type)
 
-=== TOPIC VISUALS (Each topic must have corresponding visual) ===
-{topic_visual_text}
-
-=== LAYOUT REQUIREMENTS ===
-- Title text at top: "{main_title}" - large, bold
-- 严格按照以下逐格描述生成，每个格子位置和内容都必须精确对应：
-{topic_visual_text}
-- 每个面板必须有清晰边框包裹
-- 色调统一，整体偏暖色系或科技蓝色系
-- 专业金融研报质感，无人物，高质量
-- 所有中文标注必须正确清晰
-
-=== STYLE REQUIREMENTS (MUST FOLLOW REFERENCES) ===
-{''.join(ref_descriptions)}
-
-=== TECHNICAL ===
-- Aspect ratio: {aspect_ratio}
-- High quality 4K
-- Financial news media style
-- Clean, professional layout""".format(aspect_ratio=aspect_ratio)
-    
-    # 5. 中文提示词（大爷验证最优格式，逐格精确定义，全中文避免乱码）
-
-    # 【修复】优先使用配置文件的folder_style_desc，其次用style_bg_map
-    folder_desc = config.get("folder_style_desc", "") if config else ""
-    if folder_desc and style == "folder":
-        bg_style = folder_desc
+    # 参考图描述：有图则注入参考图风格，无图则用默认描述
+    ref_desc = build_ref_descriptions(ref_images)
+    if ref_desc:
+        ref_guide = f"参考图风格约束：\n{ref_desc}"
     else:
-        # 风格映射：style_key → 中文背景风格描述（兜底）
-        style_bg_map = {
-            "folder": "拟物化文件夹/写字板质感背景",
-            "blueprint_lab": "科技蓝图风格背景",
-            "retro_pop_grid": "复古波普网格风格背景",
-            "acid_block": "赛博朋克霓虹风格背景",
-            "thermal": "手绘黑板风格背景",
-            "vintage_journal": "复古期刊风格背景",
-            "archive": "档案文件风格背景",
-            "ticket": "票据风格背景",
-        }
-        bg_style = style_bg_map.get(style, "专业金融研报风格背景")
+        ref_guide = "采用默认科技蓝图专业风格，保持配色统一、渲染精细"
 
-    # 布局描述
-    if layout_type == "grid_2x3":
-        layout_desc = "2x3网格布局"
-    elif layout_type == "hub_spoke":
-        layout_desc = "环形放射布局"
-    elif layout_type == "grid_2x2":
-        layout_desc = "2x2网格布局"
-    elif layout_type == "three_column":
-        layout_desc = "左中右三栏布局"
-    elif layout_type == "top3_bottom2":
-        layout_desc = "顶部3格横排+底部2格横排"
-    elif layout_type == "left4_right1":
-        layout_desc = "左侧4格2x2网格+右侧1个大格"
-    elif layout_type == "fan_shaped":
-        layout_desc = "扇形展开布局"
-    else:
-        layout_desc = "网格布局"
-    
-    # 面板边框要求
-    border_req = "每个板块有清晰边框和背景纹理"
-    
-    # 面板逐格描述（已有topic_visual_text）
-    slots_text = topic_visual_text.replace("\n", "\n")
-    
-    cn_prompt = f"""{aspect_ratio}宽屏比例，{bg_style}，寻找A股投资机会主题。采用{layout_desc}：
-{slots_text}
-顶部居中大标题：'{main_title}'，字体稳重清晰，整体色调统一偏暖色系，专业金融研报质感，无人物，高质量。
-所有中文标注必须正确清晰。
-""".format(aspect_ratio=aspect_ratio)
+    # 统一使用中文模板
+    cn_template = CONFIG.get("cn_prompt_template", "")
+
+    cn_prompt = cn_template.format(
+        aspect_ratio=aspect_ratio,
+        bg_style=bg_style,
+        layout_desc=layout_desc,
+        topic_visual=topic_visual,
+        main_title=main_title,
+        ref_guide=ref_guide,
+    ) if cn_template else ""
+
+    en_prompt = ""  # 已废弃，全部使用中文提示词
+
+    print(f"[INFO] 适配平台：{platform}，使用比例：{aspect_ratio}")
 
     return {
         "cn": cn_prompt,
-        "en": en_prompt,
-        "topics": topics_text,
+        "topics": "、".join([t["topic"] for t in topics]),
         "style": style,
         "ref_images": ref_images,
-        "ref_params": [],  # 用于imagen调用
     }
 
+# ==================== 报告解析 ====================
 
 def extract_topics_from_report(report_path: Path) -> list:
-    """从报告中提取热点主题 - 优化版"""
-    for encoding in ["utf-8", "utf-8-sig", "gbk", "gb2312"]:
+    """提取主题，返回[(主题标题, 完整内容)]的列表"""
+    for enc in ["utf-8", "utf-8-sig", "gbk", "gb2312"]:
         try:
-            content = report_path.read_text(encoding=encoding)
+            content = report_path.read_text(encoding=enc)
             break
         except:
             continue
-    
-    topics = []
-    
-    # 匹配模式：优先提取带emoji的完整主题行
-    patterns = [
-        # 匹配 "💎 主题：【算力自主】【业绩驱动】【🟡中风险】" 格式
-        r'💎 主题：【(.+?)】',
-        # 匹配 "主题：【算力自主】+【业绩驱动】" 格式
-        r'主题：【(.+?)】',
-        # 匹配 "【算力自主】+【业绩驱动】" 格式
-        r'【(.+?)】\+【(.+?)】',
-    ]
-    
-    for pattern in patterns:
+    topics = []  # [(标题, 完整内容)]
+    for pattern in [
+        r'💎 主题：【(.+?)】',     # 捕获: 产能爆发
+        r'主题：【(.+?)】',        # 捕获: 产能爆发
+        r'【(.+?)】\+【(.+?)】',  # 捕获: (产能爆发, SpaceX万亿IPO+政策密集催化)
+    ]:
         matches = re.findall(pattern, content)
         if matches:
             for m in matches:
                 if isinstance(m, tuple):
-                    # 合并多标签，但只取第一个核心词
-                    # "算力自主" + "业绩驱动" → "算力自主"（取第一个）
-                    core_topic = m[0].strip() if m[0].strip() else m[1].strip()
+                    # 第一个【】是主题标题，第二个是描述内容
+                    title = m[0].strip()
+                    full = m[0].strip() + '+' + m[1].strip()
                 else:
-                    # 处理 "算力自主 + 业绩驱动" 格式
-                    # 分割+号，取第一个核心词
-                    topic = m.strip()
-                    if '+' in topic:
-                        parts = topic.split('+')
-                        core_topic = parts[0].strip()
-                    else:
-                        core_topic = topic
-                
-                if core_topic and core_topic not in topics:
-                    topics.append(core_topic)
+                    title = m.strip().split('+')[0].strip()
+                    full = m.strip()
+                if title and (title, full) not in topics:
+                    topics.append((title, full))
             if topics:
                 break
-    
-    # 备用：如果没找到，尝试提取第一行 ## 标题作为主题
     if not topics:
-        lines = content.split('\n')
-        for line in lines:
-            # 匹配 "## 🔥 热点一：xxx" 格式
+        for line in content.split('\n'):
             match = re.search(r'## .? .+?：(.+)', line)
             if match:
-                topic = match.group(1).strip()
-                if topic and len(topic) < 20:  # 过滤太长的
-                    topics.append(topic)
-    
+                t = match.group(1).strip()
+                if t and len(t) < 20:
+                    topics.append((t, t))
     return topics
 
-
 def find_latest_report() -> Path:
-    """找到最新的报告"""
     reports = sorted(REPORTS_DIR.glob("*.md"), key=os.path.getmtime, reverse=True)
     return reports[0] if reports else None
 
-
-def copy_refs_to_output(ref_images: list, output_dir: Path) -> list:
-    """复制参考图到输出目录的refs子目录"""
+def copy_refs(ref_images: list, output_dir: Path) -> list:
     refs_dir = output_dir / "refs"
     refs_dir.mkdir(parents=True, exist_ok=True)
-    
-    copied_paths = []
-    for ref_path in ref_images:
-        dest = refs_dir / ref_path.name
-        shutil.copy2(ref_path, dest)
-        copied_paths.append(dest)
-        print(f"  [复制参考图] {ref_path.name} → refs/")
-    
-    return copied_paths
+    copied = []
+    for rp in ref_images:
+        dest = refs_dir / rp.name
+        shutil.copy2(rp, dest)
+        copied.append(dest)
+        print(f"  [复制参考图] {rp.name} → refs/")
+    return copied
 
+# ==================== 生图调用 ====================
 
 def generate_image(prompt: str, output_path: Path, ref_images: list = None, model: str = "imagen") -> bool:
-    """调用生图模型生成图片，支持imagen和autoglm"""
-    import subprocess
-    import json
-    
+    import subprocess, json
     if model == "imagen" and not IMAGEN_SCRIPT.exists():
-        print(f"[IMAGEN] ❌ imagen脚本不存在，自动切换到autoglm")
+        print(f"[IMAGEN] ❌ 切换到autoglm")
         model = "autoglm"
     if model == "autoglm" and not AUTOGLM_SCRIPT.exists():
         print(f"[AUTOGLM] ❌ autoglm脚本不存在")
         return False
-    
     try:
         if model == "imagen":
-            # 火山引擎imagen调用格式：python generate_image.py prompt output_path --ref ref1 --ref ref2
-            cmd = [
-                sys.executable,
-                str(IMAGEN_SCRIPT),
-                prompt,
-                str(output_path),
-            ]
+            cmd = [sys.executable, str(IMAGEN_SCRIPT), prompt, str(output_path)]
             if ref_images:
-                for ref in ref_images:
-                    cmd.extend(["--ref", str(ref)])
-            print(f"[IMAGEN] 正在生成图片...")
+                for r in ref_images:
+                    cmd.extend(["--ref", str(r)])
+            print(f"[IMAGEN] 正在生成...")
             result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180)
-            
         elif model == "autoglm":
-            # 智谱autoglm调用格式：python generate-image.py "prompt"
-            cmd = [
-                sys.executable,
-                str(AUTOGLM_SCRIPT),
-                prompt,
-            ]
-            print(f"[AUTOGLM] 正在生成图片...")
+            cmd = [sys.executable, str(AUTOGLM_SCRIPT), prompt]
+            print(f"[AUTOGLM] 正在生成...")
             result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180)
-            
-            # 处理autoglm返回结果，保存图片到指定路径
             if result.returncode == 0:
                 try:
-                    # 解析返回的json，提取image_url
                     resp = json.loads(result.stdout.strip())
-                    if resp.get("code") == 0 and resp.get("data", {}).get("image_url"):
+                    img_url = resp.get("data", {}).get("image_url")
+                    if img_url:
                         import requests
-                        img_url = resp["data"]["image_url"]
-                        # 下载图片到指定路径
                         img_resp = requests.get(img_url, timeout=30)
                         if img_resp.status_code == 200:
                             with open(output_path, "wb") as f:
                                 f.write(img_resp.content)
                             print(f"[AUTOGLM] ✅ 图片下载完成: {output_path.name}")
                             return True
-                        else:
-                            print(f"[AUTOGLM] ❌ 图片下载失败: {img_resp.status_code}")
-                            return False
                 except Exception as e:
-                    print(f"[AUTOGLM] ❌ 结果解析失败: {e}，返回内容：{result.stdout[:200]}")
+                    print(f"[AUTOGLM] ❌ 结果解析失败: {e}")
                     return False
-    
-        # 统一结果处理
         if result.returncode == 0:
             print(f"[{model.upper()}] ✅ 生成成功: {output_path.name}")
             return True
         else:
             print(f"[{model.upper()}] ❌ 生成失败: {result.stderr[:200]}")
-            # 失败时保存提示词到本地，方便手动调用
-            prompt_save_path = output_path.with_suffix(".prompt.txt")
-            prompt_save_path.write_text(prompt, encoding="utf-8")
-            print(f"💡 提示词已保存到: {prompt_save_path}，可手动调用生图")
+            output_path.with_suffix(".prompt.txt").write_text(prompt, encoding="utf-8")
             return False
-            
     except Exception as e:
         print(f"[{model.upper()}] ❌ 调用失败: {e}")
-        # 失败时保存提示词
-        prompt_save_path = output_path.with_suffix(".prompt.txt")
-        prompt_save_path.write_text(prompt, encoding="utf-8")
-        print(f"💡 提示词已保存到: {prompt_save_path}")
+        output_path.with_suffix(".prompt.txt").write_text(prompt, encoding="utf-8")
         return False
 
+# ==================== 主函数 ====================
 
 def main():
     import argparse
-    
-    # 前置检查：生图模型可用性
-    AVAILABLE_MODELS = []
-    if IMAGEN_SCRIPT.exists():
-        AVAILABLE_MODELS.append("imagen")
-    if AUTOGLM_SCRIPT.exists():
-        AVAILABLE_MODELS.append("autoglm")
-    
-    if not AVAILABLE_MODELS and not args.prompt_only:
-        print("❌ 依赖缺失：未找到任何可用的生图模型！")
-        print(f"👉 请先安装以下任意一个技能：")
-        print(f"   - imagen: {SKILLS_DIR / 'imagen'}")
-        print(f"   - autoglm-generate-image: {SKILLS_DIR / 'autoglm-generate-image'}")
-        print("💡 若仅需要生成提示词，可添加 --prompt-only 参数跳过生图步骤")
-        return
-    
-    # 自动选择优先模型（优先用imagen，没有的话用autoglm）
-    DEFAULT_MODEL = AVAILABLE_MODELS[0] if AVAILABLE_MODELS else None
-    print(f"[INFO] 可用生图模型：{AVAILABLE_MODELS}，默认使用：{DEFAULT_MODEL}")
-    
-    parser = argparse.ArgumentParser(description="热点报告智能封面生成器")
-    parser.add_argument("--model", type=str, choices=["imagen", "autoglm"], default=DEFAULT_MODEL, help="指定生图模型（默认自动选择）")
-    # 新增进阶参数，可选，不指定则自动适配
-    parser.add_argument("--layout", type=str, help="指定布局（可选：single_panel/two_column/three_column/grid_2x2/pyramid/journey_path/timeline_horizontal/mind_map/venn/funnel等20种）")
-    parser.add_argument("--style", type=str, help="指定风格（可选：blueprint_lab/retro_pop_grid/vintage_journal/acid_block/playful/retro/watercolor等17种）")
-    parser.add_argument("--platform", type=str, choices=["toutiao", "xhs", "wechat"], default="toutiao", help="适配平台（默认toutiao，可选xhs/wechat）")
-    parser.add_argument("--report", type=str, default="latest", help="报告文件名")
-    parser.add_argument("--title", type=str, default=None, help="文章标题（用于生成封面主标题）")
-    parser.add_argument("--cover", action="store_true", help="生成封面图（1张整合所有主题）")
-    parser.add_argument("--illustrate", action="store_true", help="为每个主题生成配图")
-    parser.add_argument("--prompt-only", action="store_true", help="仅生成提示词")
-    parser.add_argument("--auto", "-a", action="store_true", help="自动模式：读取报告→智能分析→生成封面")
-    
+    parser = argparse.ArgumentParser(description="热点报告智能封面生成器（yaml驱动版）")
+    parser.add_argument("--model", type=str, choices=["imagen", "autoglm"])
+    parser.add_argument("--layout", type=str, help="指定布局")
+    parser.add_argument("--style", type=str, help="指定风格")
+    parser.add_argument("--platform", type=str, choices=["toutiao", "xhs", "wechat"], default="toutiao")
+    parser.add_argument("--report", type=str, default="latest")
+    parser.add_argument("--title", type=str)
+    parser.add_argument("--article-dir", type=str)
+    parser.add_argument("--cover", action="store_true")
+    parser.add_argument("--illustrate", action="store_true")
+    parser.add_argument("--prompt-only", action="store_true")
+    parser.add_argument("--auto", "-a", action="store_true")
     args = parser.parse_args()
-    
-    # 1. 找到报告
+
+    # 模型检测
+    available = []
+    if IMAGEN_SCRIPT.exists(): available.append("imagen")
+    if AUTOGLM_SCRIPT.exists(): available.append("autoglm")
+    if not available and not args.prompt_only:
+        print("❌ 未找到生图模型，请安装 imagen 或 autoglm-generate-image")
+        return
+    if not args.model: args.model = available[0] if available else None
+    print(f"[INFO] 可用模型：{available}，使用：{args.model}")
+
+    # 找报告
     if args.report == "latest":
         report_path = find_latest_report()
     else:
         report_path = REPORTS_DIR / args.report
-    
     if not report_path or not report_path.exists():
         print(f"Error: 报告未找到: {args.report}")
         return
-    
     print(f"[INFO] 读取报告: {report_path.name}")
-    
-    # 2. 提取主题
-    topics = extract_topics_from_report(report_path)
-    
-    if not topics:
-        print("⚠️  未自动识别到热点主题，请手动输入主题（多个用空格分隔）：")
-        user_input = input("> ").strip()
-        if not user_input:
-            print("❌ 未输入主题，退出")
-            return
-        topics = [t.strip() for t in user_input.split() if t.strip()]
-    
-    # 主题太少时，询问是否补充
-    elif len(topics) < 2:
-        print(f"⚠️  仅识别到 {len(topics)} 个主题: {topics}")
-        print("是否需要补充其他主题？直接输入补充的主题（多个用空格分隔），按回车跳过：")
-        user_input = input("> ").strip()
-        if user_input:
-            extra_topics = [t.strip() for t in user_input.split() if t.strip()]
-            topics.extend(extra_topics)
-    
-    print(f"[INFO] 最终主题列表: {topics}")
-    
-    # 3. 智能分析（--cover 模式）
-    if args.cover or args.auto:
-        print(f"\n[封面模式] 智能分析多主题...")
-        
-        analysis = analyze_topics_for_cover(topics)
-        
-        # 强制覆盖用户指定的风格
-        if args.style:
-            if args.style in STYLE_REF_MAP:
-                analysis["dominant_style"] = args.style
-                print(f"[INFO] 已强制使用指定风格：{args.style}")
-            else:
-                print(f"[WARN] 未知风格：{args.style}，将使用自动匹配的风格：{analysis['dominant_style']}")
-        
-        # 构建封面提示词，传入用户参数
-        prompt_data = build_cover_prompt(analysis, args=args)
-        
-        print(f"\n{'='*60}")
-        print(f"【封面提示词】")
-        print(f"主题: {prompt_data['topics']}")
-        print(f"风格: {prompt_data['style']}")
-        print(f"参考图: {len(prompt_data['ref_images'])}张")
-        print(f"{'='*60}")
-        if args.prompt_only:
-            print(f"\n{'='*60}")
-            print(f"\n【中文提示词】\n{prompt_data['cn']}")
-            print(f"\n{'='*60}")
-            print("[INFO] 仅生成提示词模式，参考图：", [r.name for r in prompt_data["ref_images"]])
-            return
-        
-        # 4. 生成图片
-        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-        
-        # 按日期创建子目录
-        date_str = datetime.now().strftime("%Y-%m-%d")
-        dated_output_dir = OUTPUT_DIR / date_str
-        dated_output_dir.mkdir(parents=True, exist_ok=True)
-        
-        timestamp = datetime.now().strftime("%H%M%S")
-        safe_topics = re.sub(r'[\\/:*?"<>|]', '_', topics[0])[:15]
-        output_path = dated_output_dir / f"{timestamp}_cover_{safe_topics}.png"
-        
-        # 复制参考图到输出目录
-        copied_refs = copy_refs_to_output(prompt_data["ref_images"], OUTPUT_DIR)
-        
-        print(f"\n[生成封面] 调用{args.model}模型...")
-        success = generate_image(prompt_data["en"], output_path, copied_refs, model=args.model)
-        
-        if success:
-            print(f"\n✅ 封面生成完成!")
-            print(f"📁 保存位置: {output_path}")
-        else:
-            print(f"\n❌ 生成失败")
-    
-    # 4. 配图模式（每个主题单独一张）
-    elif args.illustrate:
-        print(f"\n[配图模式] 为每个主题生成单独配图...")
-        
-        for topic in topics:
-            style = detect_style_for_topic(topic)
-            ref_path = find_ref_image(style)
-            
-            print(f"\n[处理] {topic} → {style}")
-            
-            # 构建提示词
-            en_prompt = f"""Create an illustration about「{topic}」. Style: {style}, 16:9, high quality 4K."""
-            
-            if ref_path:
-                print(f"  [参考图] {ref_path.name}")
-            
-            if args.prompt_only:
-                continue
-            
-            # 生成
-            date_str = datetime.now().strftime("%Y-%m-%d")
-            dated_output_dir = OUTPUT_DIR / date_str
-            dated_output_dir.mkdir(parents=True, exist_ok=True)
-            
-            timestamp = datetime.now().strftime("%H%M%S")
-            safe_topic = re.sub(r'[\\/:*?"<>|]', '_', topic)[:15]
-            output_path = dated_output_dir / f"{timestamp}_{safe_topic}.png"
-            
-            refs = [ref_path] if ref_path else []
-            generate_image(en_prompt, output_path, refs, model=args.model)
-        
-        print(f"\n✅ 配图生成完成!")
 
+    # 提取主题
+    topics = extract_topics_from_report(report_path)
+    if not topics:
+        user_input = input("⚠️  未识别到主题，请手动输入（空格分隔）：> ").strip()
+        if not user_input: return
+        topics = [t.strip() for t in user_input.split() if t.strip()]
+    elif len(topics) < 2:
+        extra = input(f"⚠️  仅识别到 {len(topics)} 个：{topics}，补充？> ").strip()
+        if extra: topics.extend([t.strip() for t in extra.split() if t.strip()])
+    print(f"[INFO] 最终主题: {topics}")
+
+    # ===== 封面模式 =====
+    if args.cover or args.auto:
+        print("\n[封面模式]")
+        analysis = analyze_topics(topics)
+
+        # 公众号标题自动生成
+        if args.platform == "wechat" and not args.title:
+            wechat = CONFIG.get("wechat_cover_rules", {})
+            templates = wechat.get("title_templates", {})
+            all_text = " ".join([t["topic"] for t in analysis["topic_styles"]])
+            if any(kw in all_text for kw in templates.get("痛点型", {}).get("keywords", [])):
+                args.title = templates["痛点型"]["pattern"]
+            elif any(kw in all_text for kw in templates.get("利益型", {}).get("keywords", [])):
+                args.title = templates["利益型"]["pattern"]
+            elif any(kw in all_text for kw in templates.get("悬念型", {}).get("keywords", [])):
+                args.title = templates["悬念型"]["pattern"]
+            elif any(kw in str(report_path.name) for kw in templates.get("点题型", {}).get("report_patterns", [])):
+                args.title = templates["点题型"]["pattern"]
+            else:
+                count_map = {1:"一大",2:"两大",3:"三大",4:"四大",5:"五大",6:"六大"}
+                cw = count_map.get(len(topics), f"{len(topics)}大")
+                args.title = templates.get("数字型", {}).get("pattern", "{count}大热点机会").format(count=cw)
+            print(f"[INFO] 公众号标题：{args.title}")
+
+        # 公众号规则校验
+        if args.platform == "wechat" and args.title:
+            wechat = CONFIG.get("wechat_cover_rules", {})
+            max_len = wechat.get("max_title_length", 9)
+            if len(args.title) > max_len:
+                args.title = args.title[:max_len]
+            if args.title in wechat.get("forbidden_titles", []):
+                print(f"[ERROR] 标题禁止使用，请修改")
+                return
+            for w in wechat.get("forbidden_words", []):
+                if w in args.title:
+                    print(f"[ERROR] 标题含敏感词'{w}'，请修改")
+                    return
+
+        prompt_data = build_prompt(analysis, args)
+        print(f"\n{'='*60}")
+        print(f"【封面提示词】主题: {prompt_data['topics']} | 风格: {prompt_data['style']} | 参考图: {len(prompt_data['ref_images'])}张")
+        print(f"{'='*60}")
+
+        if args.prompt_only:
+            print(f"\n【提示词】\n{prompt_data['cn']}")
+            return
+
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        dated = OUTPUT_DIR / datetime.now().strftime("%Y-%m-%d")
+        dated.mkdir(exist_ok=True)
+        ts = datetime.now().strftime("%H%M%S")
+        safe = re.sub(r'[\\/:*?"<>|]', '_', topics[0])[:15]
+        output_path = dated / f"{ts}_cover_{safe}.png"
+        copied = copy_refs(prompt_data["ref_images"], OUTPUT_DIR)
+
+        success = generate_image(prompt_data["cn"], output_path, copied, model=args.model)
+        if success:
+            print(f"\n✅ 封面生成完成! 保存位置: {output_path}")
+            if args.platform == "wechat" and args.article_dir:
+                if CONFIG.get("wechat_cover_rules", {}).get("output_to_article_dir"):
+                    dest = Path(args.article_dir) / f"封面_{output_path.name}"
+                    if Path(args.article_dir).exists():
+                        shutil.copy2(output_path, dest)
+                        print(f"✅ 已复制到文章目录: {dest}")
+
+    # ===== 配图模式 =====
+    elif args.illustrate:
+        print("\n[配图模式]")
+        for t in topics:
+            style = detect_style_for_topic(t)
+            ref = find_ref_image(style)
+            print(f"[处理] {t} → {style}")
+            if ref: print(f"  [参考图] {ref.name}")
+            if args.prompt_only: continue
+            dated = OUTPUT_DIR / datetime.now().strftime("%Y-%m-%d")
+            dated.mkdir(exist_ok=True)
+            ts = datetime.now().strftime("%H%M%S")
+            output_path = dated / f"{ts}_{re.sub(r'[\\/:*?"<>|]', '_', t[:15])}.png"
+            generate_image(f"""Create an illustration about「{t}". Style: {style}, 16:9, high quality 4K.""",
+                          output_path, [ref] if ref else [], model=args.model)
+        print("\n✅ 配图完成")
 
 if __name__ == "__main__":
     main()
