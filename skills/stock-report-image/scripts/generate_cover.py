@@ -30,7 +30,6 @@ REF_DIRS = [
     SKILL_ROOT / "article-illustrator-styles",
     SKILL_ROOT / "infographic-styles",
     SKILL_ROOT / "xhs-images-styles",
-    SKILL_ROOT / "xhs-images-layouts",
 ]
 
 # ==================== 配置加载（全部从yaml，不写硬编码）====================

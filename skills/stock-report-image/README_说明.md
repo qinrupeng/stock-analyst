@@ -32,19 +32,22 @@
 ### 方式2：命令行调用（手动跑脚本）
 ```bash
 # 自动模式：读取最新报告→生成头条封面（最常用）
-python scripts/generate_cover.py --auto
+python scripts/generate_cover.py --cover
 
 # 指定报告文件
-python scripts/generate_cover.py --auto --report 2026-03-19-盘前扫描.md
+python scripts/generate_cover.py --cover --report 2026-03-19-盘前扫描.md
 
 # 仅生成提示词，不调用生图
-python scripts/generate_cover.py --auto --prompt-only
+python scripts/generate_cover.py --cover --prompt-only
+
+# 适配公众号平台（自动2.35:1比例+标题规则）
+python scripts/generate_cover.py --cover --platform wechat --title "五大热点机会"
 
 # 生成小红书3:4竖版封面
-python scripts/generate_cover.py --auto --platform xhs
+python scripts/generate_cover.py --cover --platform xhs
 
 # 强制指定风格+布局
-python scripts/generate_cover.py --auto --style playful --layout timeline_horizontal
+python scripts/generate_cover.py --cover --style playful --layout timeline_horizontal
 ```
 
 ---
@@ -79,6 +82,22 @@ platform_aspect_ratios:
 ```
 
 ---
+
+
+## 📂 参考图目录
+
+> ⚠️ `xhs-images-layouts/` 目录已废弃，请勿使用
+
+完整中文索引：`参考图目录.md`（收录97张参考图）
+
+| 目录 | 图片数 | 用途 |
+|------|--------|------|
+| cover-image-styles/ | 13张 | 封面参考图 |
+| article-illustrator-styles/ | 16张 | 文章插图 |
+| infographic-styles/ | 37张 | 信息图 |
+| slide-deck-styles/ | 14张 | PPT幻灯片 |
+| xhs-images-styles/ | 17张 | 小红书风格 |
+
 ## ❓ 常见问题
 ### Q1：生图失败怎么办？
 A：失败时会自动把提示词保存到输出目录的`.prompt.txt`文件里，可以手动复制提示词到其他生图工具生成，不会白跑。
@@ -162,6 +181,6 @@ A：指定`--platform`参数即可，比如小红书用`--platform xhs`自动改
 ```
 需求：用时间线布局生成新能源行业发展历程封面
 执行命令：
-python scripts/generate_cover.py --auto --layout timeline_horizontal
+python scripts/generate_cover.py --cover --layout timeline_horizontal
 效果：生成横向时间线布局的封面，展示新能源行业的发展节点
 ```

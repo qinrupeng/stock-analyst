@@ -44,7 +44,7 @@ python scripts/generate_cover.py --cover --platform wechat --title "五大热点
 | 配置项 | 位置 | 说明 |
 |--------|------|------|
 | 赛道→风格映射 | `theme_styles` | 修改赛道风格来这里 |
-| 赛道→图标映射 | `stock_topic_slot_icons`（67个） | 修改赛道图标来这里 |
+| 赛道→图标映射 | `stock_topic_slot_icons`（73个） | 修改赛道图标来这里 |
 | 风格→参考图映射 | `style_ref_map` | 修改风格参考图来这里 |
 | 布局推荐策略 | `layout_by_topic_count` | 按赛道数量自动选布局 |
 | 5赛道可选布局 | `five_topic_layouts` | 大爷最爱top3_bottom2 |
@@ -81,6 +81,8 @@ python scripts/generate_cover.py --cover --platform wechat --title "五大热点
 ---
 
 ## 参考图目录
+
+> ⚠️ `xhs-images-layouts/` 目录已废弃，请勿使用
 
 完整中文索引：`参考图目录.md`（收录97张参考图）
 
