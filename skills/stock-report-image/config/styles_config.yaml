@@ -1,121 +1,83 @@
-# ============================================================
-# 风格→参考图映射（按目录分组，中文注释说明用途+来源目录）
-# 【目录优先级】同一文件多个目录存在时，按以下顺序查找：
-#   cover-image-styles > article-illustrator-styles > infographic-styles > xhs-images-styles > slide-deck-styles
-# 【冲突警告】以下文件在多个目录都有，内容可能不同，已在注释中标注优先使用方向
-# ============================================================
-
 style_ref_map:
-  # ── 封面参考图（cover-image-styles/ 13张）───────────────────────────
-  # 优先用于：A股投资机会、金融、储能锂电、黄金稀土等主赛道封面
-  folder: "folder-reference.webp"           # 拟物化文件夹写字板 ★大爷最爱★（克莱因蓝+活力橙，3D微缩，米黄纸张+木质夹板）
-  vintage_journal: "vintage.webp"          # 复古期刊航海日志（羊皮纸+深棕+暗金）【与article/slide重名，优先cover】
-  retro_pop_grid: "retro.webp"             # 1920年代Art Deco复古波普（做旧羊皮纸，低饱和红黄蓝）【与article/xhs重名，优先cover】
-  dark_atmospheric: "dark-atmospheric.webp" # 暗黑奇幻+霓虹光效（深靛蓝+霓虹品红）【与slide重名，优先cover】
-  elegant: "elegant.webp"                   # 优雅古堡莫兰迪色（奶油白+陶土粉+灰蓝+金色藤蔓）【与article重名，优先cover】
-  fantasy_animation: "fantasy-animation.webp" # 温馨治愈奇幻童话（淡蓝米白+金黄+森林绿）【与article/slide重名，优先cover】
-  intuition_machine: "intuition-machine.webp" # 复古未来主义+达芬奇手稿（羊皮纸+湖蓝草绿赤土红）【与article/slide重名，优先cover】
-  nature: "nature.webp"                     # 手绘线条大地色系（森林绿+土褐+赤陶+天蓝）【与article重名，优先cover】
-  pixel_art: "pixel-art.webp"               # 像素艺术8-bit游戏（天蓝底+高饱和红黄蓝方块点阵）【与infographic/slide重名，优先article】
-  sketch_notes: "sketch-notes.webp"          # 手绘涂鸦笔记本（米白+鼠尾草绿+琥珀赤陶）【与article/slide重名，优先cover】
-  vector_illustration: "vector-illustration.webp" # 复古绘本牛皮纸（土黄+豆沙绿+芥末蓝灰+点阵装饰）【与article/slide重名，优先cover】
-  warm: "warm.webp"                         # 手绘治愈蜡笔彩铅（米白淡黄+姜土红，莫兰迪色系）【与article/xhs重名，优先cover】
-  watercolor: "watercolor.webp"             # 水彩手绘马卡龙色（淡紫柔紫+天蓝浅橙+草绿）【与article/slide重名，优先cover】
-
-  # ── 文章插图（article-illustrator-styles/ 16张）──────────────────────
-  # 优先用于：深度分析文章、技术解读等插图
-  blueprint_lab: "blueprint.webp"            # 严谨蓝图技术感 ★AI算力芯片主风格★（板斯特蓝+浅灰+海军蓝）【与slide重名，优先article】
-  editorial: "editorial.webp"               # 扁平现代信息图（深蓝+珊瑚红+浅蓝）【与cover重名，优先cover】
-  playful: "playful.webp"                   # 手绘涂鸦卡通童趣（米白+马卡龙色彩）【未在theme_styles使用】
-  sketch: "sketch.webp"                     # 手绘设计过程感（米白+炭黑+青蓝）【article独有】
-  scientific: "scientific.webp"              # 现代学术信息图（米白灰蓝+亮黄）【与slide重名，优先article】
-  elegant_illustration: "elegant.webp"       # 优雅插画（暖金+薄荷绿+淡橘褐）【与cover重名，优先cover】
-  fantasy_anim: "fantasy-animation.webp"     # 幻想动画（柔和梦幻水彩童话）【与cover重名，优先cover】
-  nature_illustration: "nature.webp"        # 自然插画（有机自然流动感）【与cover重名，优先cover】
-  pixel_art_style: "pixel-art.webp"         # 像素艺术风【与cover重名，优先cover】
-  sketch_notes_style: "sketch-notes.webp"    # 手绘笔记风【与cover重名，优先cover】
-  warm_style: "warm.webp"                   # 温馨暖色风【与cover重名，优先cover】
-  watercolor_style: "watercolor.webp"       # 水彩插画风【与cover重名，优先cover】
-
-  # ── 信息图表（infographic-styles/ 37张）──────────────────────────────
-  # 优先用于：数据图、流程图、对比图等专业信息图
-  tech_schematic: "technical-schematic.webp" # 工程蓝图技术感（深蓝+荧光蓝+嫩绿）
-  acid_block: "cyberpunk-neon.webp"          # 前沿科技霓虹（深蓝+霓虹青绿）
-  thermal: "chalkboard.webp"                 # 手绘粉笔黑板（深绿黑板+粉笔彩色）【与article/xhs/slide重名，优先article】
-  aged_academia: "aged-academia.webp"        # 复古学院中世纪手抄本（羊皮纸+铁锈红+深古典绿）
-  bold_graphic: "bold-graphic.webp"          # 复古漫画英雄主义（红蓝原色+黑色勾边+本戴点）
-  bridge_architecture: "bridge.webp"         # 摇摆吊桥手绘流程（米白+多彩柔和色）
-  circular_flow: "circular-flow.webp"         # 手绘商务木纹桌面（米黄+柔和红黄蓝）
-  cladaymation: "claymation.webp"            # 黏土3D温暖手工（灰蓝鼠尾草绿+咖啡+阳光橙）
-  comparison_table: "comparison-table.webp"   # 温馨手绘对照（珊瑚红vs森林绿）
-  corporate_memphis: "corporate-memphis.webp" # 现代扁平商务插画（深紫+青蓝+明黄+薄荷绿）
-  craft_handmade: "craft-handmade.webp"       # 剪纸叠加层析（莫兰迪色+深灰轮廓）
-  do_dont: "do-dont.webp"                    # 手绘手账警示对照（米黄+森林绿+铁锈红）
-  equation_style: "equation.webp"             # 复古手绘金奖章（米黄+暗金+莫兰迪色调）
-  feature_list: "feature-list.webp"           # 环保手绘水彩清单（米白+草绿+柔橙+浅蓝）
-  fishbone: "fishbone.webp"                  # 复古草图鱼骨逻辑（牛皮纸+莫兰迪色调）
-  funnel_style: "funnel.webp"               # 营销漏斗手绘（米白+红黄蓝色系）
-  grid_cards: "grid-cards.webp"             # 能力素质模型手绘（马卡龙多彩+咖啡色勾边）
-  iceberg: "iceberg.webp"                    # 冰山心理学手绘（浅蓝灰紫+亮橙点缀）
-  ikea_manual: "ikea-manual.webp"            # 极简宜家说明书（黑白线条+蓝黄点缀）
-  journey_path: "journey-path.webp"          # 手绘路径品牌故事（米黄+红黄蓝色系）
-  kawaii_style: "kawaii.webp"               # 粉彩可爱健康科普（淡紫樱花色+奶油白+红黄蓝）
-  knolling_flat: "knolling.webp"             # 直角排列工业秩序（黑色深灰+白底）
-  layers_stack: "layers-stack.webp"          # 纸艺拼贴层叠（莫兰迪色+灰黑轮廓线）
-  lego_brick: "lego-brick.webp"              # 乐高等轴测学习路线（红黄蓝三原色+绿）
-  mind_map: "mind-map.webp"                  # 头脑风暴绳索连接（米白+红黄蓝色系）
-  nested_circles: "nested-circles.webp"      # 心理学组织环（米白+橘粉+青蓝+炭灰）
-  origami_style: "origami.webp"             # 剪纸层叠立体感（砖红橄榄绿+浅灰）
-  priority_quadrants: "priority-quadrants.webp" # 手绘复古子弹笔记（米黄+落日橘+芥末绿+鼠尾草绿）
-  pyramid_style: "pyramid.webp"              # 纸艺拼贴温暖人文（米黄+柔和红黄色系）
-  scale_balance: "scale-balance.webp"       # 手绘天平决策（浅米淡蓝土赭+亮橙翠绿）
-  storybook_watercolor: "storybook-watercolor.webp" # 儿童百科绘本水彩（浅蓝鼠尾草绿+金黄+红蓝色系）
-  subway_map: "subway-map.webp"              # 城市地铁线路图（极简深灰+多彩线条）
-  timeline_horizontal: "timeline-horizontal.webp" # 品牌历史复古日志（米黄+橄榄绿+金橙）
-  tree_hierarchy: "tree-hierarchy.webp"       # 有机树木组织架构（米黄棕褐墨绿+明黄浅紫）
-  ui_wireframe: "ui-wireframe.webp"           # 现代图解式UI/UX（浅灰+天蓝宝蓝）
-  venn_diagram: "venn.webp"                 # 达芬奇风格决策图（羊皮纸+炭黑+暗金色）
-  sketch_style: "sketch.webp"                # 素描风格（注：文件在article-illustrator-styles/sketch.webp）
-
-  # ── 小红书风格（xhs-images-styles/ 17张）─────────────────────────────
-  # 优先用于：小红书、公众号封面等社交平台
-  xhs_pop: "pop.webp"                       # 美式漫画活力（明黄亮红宝蓝+翠绿橘粉+波点）
-  xhs_balanced: "balanced.webp"              # 简洁手绘干货风（黑色线条+马卡龙色彩点缀）
-  xhs_bold: "bold.webp"                      # 波普警戒拼贴（明黄亮红+黑）【与infographic-bold_graphic同名不同图】
-  xhs_chalkboard: "chalkboard.webp"          # 粉笔寓教于乐（深灰底+荧光色红黄蓝绿）【与article/infographic同名不同图】
-  xhs_comparison: "comparison.webp"           # 清新左右对照（薄荷绿奶油白淡黄+珊瑚红）
-  xhs_cute: "cute.webp"                      # 极致甜美治愈少女（粉红淡紫奶白+红黄蓝色系）
-  xhs_dense: "dense.webp"                    # 手绘密集干货知识（低饱和马卡龙+深灰线条）
-  xhs_flow: "flow.webp"                      # 手绘水彩清新护肤（浅蓝淡绿嫩黄淡粉）
-  xhs_fresh: "fresh.webp"                    # 清新极简水彩（薄荷绿天蓝+淡黄珊瑚红）
-  xhs_list: "list.webp"                      # 手绘清单可爱种草（奶白+红浅黄薄荷绿天蓝）
-  xhs_minimal: "minimal.webp"                # 极简线条生活美学（极简灰藏青墨黑）
-  xhs_notion: "notion.webp"                  # 极简手绘效率（黑白线条+马卡龙点缀）【与slide-deck-notion同名不同图】
-  xhs_retro: "retro.webp"                     # 复古手账怀旧叙事（米黄橄榄绿焦糖色脏粉复古粉）【与cover/article同名不同图】
-  xhs_sparse: "sparse.webp"                   # 极简禅意留白艺术（米白墨黑+莫兰迪粉色系）
-  xhs_warm: "warm.webp"                       # 温馨治愈生活（米杏奶油白浅咖+焦糖色暖橘）【与cover/article同名不同图】
-  # PNG特殊文件（fkdwc.png, jkshxcs.png）仅作参考，无对应风格key
-
-  # ── slide-deck-styles/（PPT幻灯片14张）【目前未被theme_styles使用】──
-  # corporate: "corporate.webp"              # 高端商务数据极简（海军蓝+质感灰）
-  # editorial_infographic: "editorial-infographic.webp" # 扁平现代科技插画（深蓝/浅粉+橙红/天蓝）
-  # dark_atmospheric_slide: "dark-atmospheric.webp" # 宇宙梦境神秘深邃（深紫+霓虹粉紫）【与cover重名，优先cover】
-  # blueprint_slide: "blueprint.webp"         # 严谨蓝图AI原理（米白+深蓝）【与article重名，优先article】
-  # intution_machine_slide: "intuition-machine.webp" # 技术蓝图手绘百科（米白+碳灰/深青）【与cover重名，优先cover】
-  # vintage_slide: "vintage.webp"            # 复古航海地图（古董色+深蓝/大地色+暗金）【与cover重名，优先cover】
-  # fantasy_slide: "fantasy-animation.webp"  # 奇幻绘本水彩（天蓝奶白+大地色金黄深蓝）【与cover重名，优先cover】
-  # sketch_notes_slide: "sketch-notes.webp"  # 手绘AI科普（米杏+焦糖色+橄榄绿+炭灰）【与cover重名，优先cover】
-  # vector_slide: "vector-illustration.webp" # 扁平复古科技（莫兰迪色+深蓝灰线条）【与cover重名，优先cover】
-  # watercolor_slide: "watercolor.webp"      # 水彩宁静诗意（橘粉+草绿+丁香色）【与cover重名，优先cover】
-  # pixel_art_slide: "pixel-art.webp"        # 复古像素CRT（天蓝+红黄深蓝）【与cover重名，优先cover】
-  # scientific_slide: "scientific.webp"       # 科学教科书矢量（橘黄+浅蓝+亮紫）【与article重名，优先article】
-  # notion_slide: "notion.webp"              # 极简SaaS数据看板（极简灰+科技蓝+柔和色）【与xhs-notion同名不同图】
-
-  # ── 特殊用途 ────────────────────────────────────────────────────────
-  archive: "editorial.webp"                   # 档案风（金融银行专用）【与cover/article重名，优先cover】
-  ticket: "playful.webp"                      # 票据活泼风【与article重名，优先article】
-
-
+  folder: folder-reference.webp
+  vintage_journal: vintage.webp
+  retro_pop_grid: retro.webp
+  dark_atmospheric: dark-atmospheric.webp
+  elegant: elegant.webp
+  fantasy_animation: fantasy-animation.webp
+  intuition_machine: intuition-machine.webp
+  nature: nature.webp
+  pixel_art: pixel-art.webp
+  sketch_notes: sketch-notes.webp
+  vector_illustration: vector-illustration.webp
+  warm: warm.webp
+  watercolor: watercolor.webp
+  blueprint_lab: blueprint.webp
+  editorial: editorial.webp
+  playful: playful.webp
+  sketch: sketch.webp
+  scientific: scientific.webp
+  elegant_illustration: elegant.webp
+  fantasy_anim: fantasy-animation.webp
+  nature_illustration: nature.webp
+  pixel_art_style: pixel-art.webp
+  sketch_notes_style: sketch-notes.webp
+  warm_style: warm.webp
+  watercolor_style: watercolor.webp
+  tech_schematic: technical-schematic.webp
+  acid_block: cyberpunk-neon.webp
+  thermal: chalkboard.webp
+  aged_academia: aged-academia.webp
+  bold_graphic: bold-graphic.webp
+  bridge_architecture: bridge.webp
+  circular_flow: circular-flow.webp
+  cladaymation: claymation.webp
+  comparison_table: comparison-table.webp
+  corporate_memphis: corporate-memphis.webp
+  craft_handmade: craft-handmade.webp
+  do_dont: do-dont.webp
+  equation_style: equation.webp
+  feature_list: feature-list.webp
+  fishbone: fishbone.webp
+  funnel_style: funnel.webp
+  grid_cards: grid-cards.webp
+  iceberg: iceberg.webp
+  ikea_manual: ikea-manual.webp
+  journey_path: journey-path.webp
+  kawaii_style: kawaii.webp
+  knolling_flat: knolling.webp
+  layers_stack: layers-stack.webp
+  lego_brick: lego-brick.webp
+  mind_map: mind-map.webp
+  nested_circles: nested-circles.webp
+  origami_style: origami.webp
+  priority_quadrants: priority-quadrants.webp
+  pyramid_style: pyramid.webp
+  scale_balance: scale-balance.webp
+  storybook_watercolor: storybook-watercolor.webp
+  subway_map: subway-map.webp
+  timeline_horizontal: timeline-horizontal.webp
+  tree_hierarchy: tree-hierarchy.webp
+  ui_wireframe: ui-wireframe.webp
+  venn_diagram: venn.webp
+  sketch_style: sketch.webp
+  xhs_pop: pop.webp
+  xhs_balanced: balanced.webp
+  xhs_bold: bold.webp
+  xhs_chalkboard: chalkboard.webp
+  xhs_comparison: comparison.webp
+  xhs_cute: cute.webp
+  xhs_dense: dense.webp
+  xhs_flow: flow.webp
+  xhs_fresh: fresh.webp
+  xhs_list: list.webp
+  xhs_minimal: minimal.webp
+  xhs_notion: notion.webp
+  xhs_retro: retro.webp
+  xhs_sparse: sparse.webp
+  xhs_warm: warm.webp
+  archive: editorial.webp
+  ticket: playful.webp
 theme_styles:
   算力: blueprint_lab
   芯片: blueprint_lab
@@ -180,6 +142,7 @@ theme_styles:
   市场分析: folder
   机会: folder
   贵金属: retro_pop_grid
+  产能爆发: blueprint_lab
 stock_topic_slot_icons:
   AI数字经济: 电路板+芯片图标
   算力: GPU芯片+服务器图标
@@ -254,6 +217,7 @@ stock_topic_slot_icons:
   市场分析: 分析图表+放大镜图标
   机会: 机会+闪电图标
   贵金属: 金块+银币图标
+  产能爆发: 商业火箭+卫星星座图标
 theme_topic_fallback:
   产能爆发:
   - 商业航天

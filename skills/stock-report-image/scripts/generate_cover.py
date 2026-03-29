@@ -90,37 +90,51 @@ def find_ref_image(style_key: str) -> Path:
     return None
 
 def detect_style_for_topic(topic: str, full_content: str = "") -> tuple:
-    """topic=主题标题, full_content=完整内容(含描述)，返回(style, matched_keyword)"""
+    """topic=主题标题, full_content=完整内容(含描述)，返回(style, matched_keyword)
+    
+    标注优先级：fallback第一个关键词 > 直接匹配关键词 > topic原始名
+    """
     theme_styles = get_theme_styles()
     icons = get_topic_icons()
     default = get_default_style()
     scan_text = full_content if full_content else topic
+    
+    # 优先：检查是否属于fallback主题，如果是，优先使用fallback第一个关键词做标注
+    fallback_map = CONFIG.get("theme_topic_fallback", {})
+    for theme_name, fallback_keywords in fallback_map.items():
+        if theme_name in topic:
+            # 找到匹配的风格（fallback关键词或theme_styles中的key）
+            matched_style = None
+            for kw in fallback_keywords:
+                if kw in theme_styles:
+                    matched_style = theme_styles[kw]
+                    break
+            if not matched_style:
+                # fallback关键词都不在theme_styles里，在icons里找
+                for kw in fallback_keywords:
+                    if kw in icons:
+                        matched_style = default
+                        break
+            if not matched_style:
+                matched_style = default
+            # 标注用fallback第一个关键词
+            return matched_style, fallback_keywords[0]
+    
     # 直接匹配：theme_styles的key是否在topic标题里
     for keyword, style in theme_styles.items():
         if keyword in topic:
             return style, keyword
-    # 回退1：在完整内容中扫描fallback关键词
-    fallback_map = CONFIG.get("theme_topic_fallback", {})
-    for theme_name, fallback_keywords in fallback_map.items():
-        if theme_name in topic:
-            for kw in fallback_keywords:
-                # 检查kw是否在scan_text里
-                if kw in scan_text:
-                    # 在theme_styles里找对应风格
-                    matched_style = next((v for k, v in theme_styles.items() if k == kw), None)
-                    if matched_style:
-                        return matched_style, kw
-                    # 在icons里找对应图标（用icons的style默认值）
-                    if kw in icons:
-                        return default, kw
+    
     # 回退2：在完整内容中直接扫描所有theme_styles关键词
     for keyword, style in theme_styles.items():
         if keyword in scan_text:
             return style, keyword
+    
     # 回退3：在完整内容中扫描icons关键词
     for keyword, icon in icons.items():
         if keyword in scan_text and keyword not in topic:
             return default, keyword
+    
     return default, topic
 
 def get_topic_icon(topic: str, full_content: str = "") -> str:
