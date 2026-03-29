@@ -226,6 +226,34 @@ def get_layout_desc(layout_type: str) -> str:
     layout_defs = CONFIG.get("layout_definitions", {})
     return layout_defs.get(layout_type, "网格布局")
 
+def get_wechat_cover_rules() -> dict:
+    """获取公众号封面规则"""
+    return CONFIG.get("wechat_cover_rules", {})
+
+def apply_wechat_title_rules(title: str, topics: list = None) -> str:
+    """应用公众号标题规则：禁止词检查+最大长度+模板生成"""
+    rules = get_wechat_cover_rules()
+    max_len = rules.get("max_title_length", 13)
+    forbidden_words = rules.get("forbidden_words", [])
+    forbidden_titles = rules.get("forbidden_titles", [])
+
+    # 禁止词检查
+    for fw in forbidden_words:
+        if fw in title:
+            print(f"[WARN] 标题含禁止词'{fw}'，已替换")
+            title = title.replace(fw, "**")
+    for ft in forbidden_titles:
+        if ft in title:
+            print(f"[WARN] 标题为禁止标题'{ft}'，已替换")
+            title = ft + "（违规）"
+
+    # 长度截断
+    if len(title) > max_len:
+        title = title[:max_len]
+        print(f"[WARN] 标题超过{max_len}字，已截断")
+
+    return title
+
 def build_prompt(analysis: dict, args) -> dict:
     """组装提示词——全部从yaml模板填充"""
     topics = analysis["merged_topics"] = analysis["topic_styles"]
@@ -256,14 +284,46 @@ def build_prompt(analysis: dict, args) -> dict:
     aspect_ratio = get_aspect_ratio(platform)
     if platform == "wechat":
         aspect_ratio = "2.35:1"
+        # 接入wechat_cover_rules
+        rules = get_wechat_cover_rules()
+        title_templates = rules.get("title_templates", {})
+        max_len = rules.get("max_title_length", 13)
 
-    if getattr(args, "title", None) and args.title:
-        main_title = args.title[:20] if len(args.title) > 20 else args.title
+        if getattr(args, "title", None) and args.title:
+            # 用户指定标题 → 应用禁止词+长度规则
+            main_title = apply_wechat_title_rules(args.title, topics)
+        else:
+            # 无指定标题 → 从模板自动生成
+            # 先尝试根据内容关键词匹配模板
+            topic_text = " ".join([t["full"] for t in topics])
+            matched_template = None
+            for tmpl_name, tmpl_cfg in title_templates.items():
+                # 优先用report_patterns匹配（如盘前→点题型）
+                report_patterns = tmpl_cfg.get("report_patterns", [])
+                if report_patterns and any(p in topic_text for p in report_patterns):
+                    matched_template = tmpl_cfg["pattern"]
+                    print(f"[INFO] 标题模板匹配：{tmpl_name}（关键词：{report_patterns}）")
+                    break
+                # 其次用keywords匹配
+                keywords = tmpl_cfg.get("keywords", [])
+                if keywords and any(kw in topic_text for kw in keywords):
+                    matched_template = tmpl_cfg["pattern"]
+                    print(f"[INFO] 标题模板匹配：{tmpl_name}（关键词：{keywords}）")
+                    break
+            if matched_template:
+                main_title = matched_template
+            else:
+                main_title = f"{topic_count}大主线机会"
+            main_title = apply_wechat_title_rules(main_title, topics)
     else:
-        main_title = "A股热点前瞻"
-        candidates = [t["topic"] for t in topics if any(kw in t["topic"] for kw in ["机会", "赛道", "前瞻", "热点"])]
-        if candidates:
-            main_title = f"A股{''.join(candidates[:2])}"
+        # 非公众号平台
+        if getattr(args, "title", None) and args.title:
+            main_title = args.title
+        else:
+            main_title = "A股热点前瞻"
+            candidates = [t["topic"] for t in topics if any(kw in t["topic"] for kw in ["机会", "赛道", "前瞻", "热点"])]
+            if candidates:
+                main_title = f"A股{''.join(candidates[:2])}"
 
     # 组装各部分（传完整tuple，让回退逻辑能扫描完整主题内容）
     topic_visual = build_topic_visual_text([(t["topic"], t["full"]) for t in topics], layout_type)
