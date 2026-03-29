@@ -22,11 +22,15 @@ If `BOOTSTRAP.md` exists, that's your birth certificate. Follow it, figure out w
 - 股票筛选 → read stock-screener SKILL.md
 - 个股分析 → read stock-fullstack-analyst SKILL.md
 
+**【#任务执行链路】**
+任何任务 → 找技能 → 核对TRIGGERS确认匹配 → 找到更匹配的就换 → 读SKILL.md → 按流程执行
+
 **强制check：** 每次A股报告输出前必须先声明：
 ```
-✅ A股报告自检10项已完成
+✅ A股报告自检18项已完成（格式10项 + 内容8项）
 ---
-[1] ✅ [2] ✅ [3] ✅ [4] ✅ [5] ✅ [6] ✅ [7] ✅ [8] ✅ [9] ✅ [10] ✅
+【格式自检】[1] ✅ [2] ✅ [3] ✅ [4] ✅ [5] ✅ [6] ✅ [7] ✅ [8] ✅ [9] ✅ [10] ✅
+【内容自检】[11] ✅ [12] ✅ [13] ✅ [14] ✅ [15] ✅ [16] ✅ [17] ✅ [18] ✅
 ```
 
 **没有这个声明，不允许输出任何报告！**
@@ -41,7 +45,6 @@ If `BOOTSTRAP.md` exists, that's your birth certificate. Follow it, figure out w
 
 ## 【每次任务执行前必查】
 
-**大爷的教训（2026-03-22）**：写文章时跳过了toutiao-article-generator的10步流程，直接手写，导致排版乱七八糟。
 
 **执行前检查清单**：
 ```
